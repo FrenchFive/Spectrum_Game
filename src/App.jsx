@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github, Send, List, Search, Eye, MoveHorizontal } from "lucide-react";
+import { Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github, Send, List, Search } from "lucide-react";
 import { btn, suggestUrl, THEMES, clampA } from "./constants";
-import { DialBoard } from "./Dial";
+import { Dial } from "./Dial";
 
 // Optional: a serverless Worker URL that creates the GitHub issue for the player.
 // Set via the VITE_SUGGEST_ENDPOINT build var. If absent, we fall back to opening
@@ -61,10 +61,11 @@ const HERO_THEMES = [
 
 function HeroDial() {
   const [value, setValue] = useState(96);
-  const [idx, setIdx] = useState(0);
-  // a pleasant, deterministic bullseye position per theme
-  const target = clampA(58 + ((idx * 41) % 74));
+  const [shown, setShown] = useState(0);
+  const [vis, setVis] = useState(true);
+  const target = 92; // fixed bullseye so the band zones never teleport between pairs
 
+  // gentle, continuous needle sweep
   useEffect(() => {
     const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) { setValue(target); return; }
@@ -77,37 +78,58 @@ function HeroDial() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [target]);
+  }, []);
 
+  // cycle the pair with a soft crossfade: fade the labels out, swap, fade back in
   useEffect(() => {
-    const id = setInterval(() => setIdx((i) => (i + 1) % HERO_THEMES.length), 3800);
+    const id = setInterval(() => {
+      setVis(false);
+      setTimeout(() => { setShown((s) => (s + 1) % HERO_THEMES.length); setVis(true); }, 420);
+    }, 4200);
     return () => clearInterval(id);
   }, []);
 
-  return <DialBoard theme={HERO_THEMES[idx]} value={value} target={target} forceNeedle revealStage={3} />;
+  const theme = HERO_THEMES[shown];
+  const tag = (sky) => ({
+    [sky ? "left" : "right"]: 10,
+    color: sky ? "#7dd3fc" : "#fdba74",
+    background: sky ? "rgba(56,189,248,0.12)" : "rgba(251,146,60,0.12)",
+    border: `1px solid ${sky ? "rgba(56,189,248,0.3)" : "rgba(251,146,60,0.3)"}`,
+    fontFamily: "'Space Mono', monospace",
+    transition: "opacity 420ms ease",
+    opacity: vis ? 1 : 0,
+  });
+
+  return (
+    <div className="relative rounded-2xl p-2 pb-10" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <Dial value={value} target={target} forceNeedle revealStage={3} />
+      <span className="absolute bottom-3 px-2.5 py-1 rounded-md font-bold text-[11px] uppercase tracking-[0.1em] max-w-[44%] truncate" style={tag(true)}>{theme[0]}</span>
+      <span className="absolute bottom-3 px-2.5 py-1 rounded-md font-bold text-[11px] uppercase tracking-[0.1em] max-w-[44%] truncate" style={tag(false)}>{theme[1]}</span>
+    </div>
+  );
 }
 
 const STEPS = [
-  { Icon: Eye, color: "#facc15", title: "The Master gives one word", text: "They see a hidden spot on the spectrum and drop a single clue." },
-  { Icon: MoveHorizontal, color: "#7dd3fc", title: "Everyone guesses", text: "Drag your needle to where you think that word lands." },
-  { Icon: Target, color: "#4ade80", title: "Closer is more points", text: "Nail the bullseye to clean up. Read the room, win the round." },
+  { color: "#facc15", title: "The Master gives one word", text: "They see a hidden spot on the spectrum and drop a single clue." },
+  { color: "#7dd3fc", title: "Everyone guesses", text: "Drag your needle to where you think that word lands." },
+  { color: "#4ade80", title: "Closer is more points", text: "Nail the bullseye to clean up. Read the room, win the round." },
 ];
 
+// Plain numbered steps — deliberately list-like (no card/border) so they're never
+// mistaken for the tappable play buttons above.
 function HowItWorks() {
   return (
-    <div className="space-y-2.5">
-      {STEPS.map(({ Icon, color, title, text }, i) => (
-        <div key={i} className="flex items-start gap-3 rounded-xl px-3.5 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="grid place-items-center rounded-lg shrink-0 mt-0.5" style={{ width: 30, height: 30, background: `${color}1f` }}>
-            <Icon size={16} color={color} />
-          </div>
-          <div>
+    <ol className="space-y-3.5">
+      {STEPS.map(({ color, title, text }, i) => (
+        <li key={i} className="flex items-start gap-3">
+          <div className="grid place-items-center rounded-full shrink-0 text-[12px] font-bold" style={{ width: 22, height: 22, color, border: `1px solid ${color}55`, background: `${color}14` }}>{i + 1}</div>
+          <div className="-mt-0.5">
             <div className="text-[14px] font-semibold" style={{ color: "#e7ecf3" }}>{title}</div>
             <div className="text-[13px]" style={{ color: "#8a94a6", lineHeight: 1.45 }}>{text}</div>
           </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
@@ -139,7 +161,7 @@ export default function App() {
         {/* HOME */}
         {mode === "home" && (
           <div className="space-y-6">
-            {/* HERO */}
+            {/* HERO COPY */}
             <div className="space-y-3">
               <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 30, lineHeight: 1.05, letterSpacing: "-0.02em" }}>
                 One word. <span style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Where does it land?</span>
@@ -147,30 +169,36 @@ export default function App() {
               <p style={{ color: "#9aa4b4", fontSize: 15, lineHeight: 1.55 }}>
                 The wildly fun party game of reading minds. One clue, a hidden target, and everyone racing to guess the same wavelength.
               </p>
-              <HeroDial />
-              <div className="flex items-center justify-center gap-2 text-[12px]" style={{ color: "#6b7686" }}>
+            </div>
+
+            {/* PRIMARY CTAs — loud, filled, and the first thing you reach for */}
+            <div className="space-y-3">
+              <div className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>Start a game</div>
+              <button onClick={() => setMode("local")} className={`${btn} w-full rounded-2xl p-5 flex items-center gap-4 text-left`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", boxShadow: "0 10px 30px -8px rgba(34,211,238,0.5)" }}>
+                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 48, height: 48, background: "rgba(6,20,15,0.16)" }}><Users size={24} color="#06140f" /></div>
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 20 }}>Pass &amp; play</div>
+                  <div className="text-sm" style={{ color: "rgba(6,20,15,0.72)" }}>One device, passed around the room</div>
+                </div>
+                <ArrowRight size={22} color="#06140f" strokeWidth={2.5} />
+              </button>
+              <button onClick={() => setMode("onlineEntry")} className={`${btn} w-full rounded-2xl p-5 flex items-center gap-4 text-left`} style={{ background: "rgba(34,211,238,0.1)", border: "1.5px solid rgba(34,211,238,0.55)", boxShadow: "0 8px 26px -12px rgba(34,211,238,0.45)" }}>
+                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 48, height: 48, background: "rgba(34,211,238,0.18)" }}><Wifi size={24} color="#67e8f9" /></div>
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 20, color: "#e7ecf3" }}>Play online</div>
+                  <div className="text-sm" style={{ color: "#9aa4b4" }}>Share a code, each on their own phone</div>
+                </div>
+                <ArrowRight size={22} color="#67e8f9" strokeWidth={2.5} />
+              </button>
+              <div className="flex items-center justify-center gap-2 text-[12px] pt-0.5" style={{ color: "#6b7686" }}>
                 <span>Free</span><span>·</span><span>No sign-up</span><span>·</span><span>2–8 players</span>
               </div>
             </div>
 
-            {/* PRIMARY CTAs */}
-            <div className="space-y-3">
-              <button onClick={() => setMode("local")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(74,222,128,0.14)" }}><Users size={22} color="#86efac" /></div>
-                <div className="flex-1">
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Pass &amp; play</div>
-                  <div className="text-sm" style={{ color: "#8a94a6" }}>One device, passed around the room</div>
-                </div>
-                <ArrowRight size={18} color="#6b7686" />
-              </button>
-              <button onClick={() => setMode("onlineEntry")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(34,211,238,0.14)" }}><Wifi size={22} color="#67e8f9" /></div>
-                <div className="flex-1">
-                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Play online</div>
-                  <div className="text-sm" style={{ color: "#8a94a6" }}>Share a code, each on their own phone</div>
-                </div>
-                <ArrowRight size={18} color="#6b7686" />
-              </button>
+            {/* LIVE SHOWCASE — what a round actually looks like */}
+            <div className="space-y-2">
+              <div className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>A live round</div>
+              <HeroDial />
             </div>
 
             {/* HOW IT WORKS */}
