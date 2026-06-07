@@ -160,6 +160,7 @@ export const THEMES = [
   ["A side character", "The main character"],
   ["A flicker", "An inferno"],
   ["Quietly judging", "Openly hating"],
+  ["Princess Treatment", "Bare Minimum Submitted from the game."],
 ];
 
 export const PLAYER_COLORS = ["#38bdf8", "#fb923c", "#a78bfa", "#f472b6", "#facc15", "#4ade80", "#f87171", "#2dd4bf"];
