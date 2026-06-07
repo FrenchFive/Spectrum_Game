@@ -17,7 +17,7 @@ const browser = await chromium.launch();
   const page = await ctx.newPage();
   watch(page, "local");
   await page.goto(BASE, { waitUntil: "networkidle" });
-  await page.waitForSelector("text=SPECTRA");
+  await page.waitForSelector("text=SPECTRUM");
   log("✓ app mounted");
 
   await page.click("text=Pass & play");
@@ -41,23 +41,24 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
-// ---------- 1b) Suggest-a-spectrum builds the right prefilled GitHub URL ----------
+// ---------- 1b) Suggest-a-spectrum posts to the worker (no GitHub for the player) ----------
 {
   const ctx = await browser.newContext({ viewport: { width: 414, height: 896 }, hasTouch: true });
   const page = await ctx.newPage();
   watch(page, "suggest");
+  let posted = null;
+  await page.route("https://suggest.test/api", async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/FrenchFive/Spectrum_Game/issues/1" }) });
+  });
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.click("text=Suggest a Left/Right spectrum");
-  await page.fill("input[placeholder='e.g. White lie']", "White lie");
-  await page.fill("input[placeholder='e.g. Unforgivable lie']", "Unforgivable lie");
-  await page.evaluate(() => { window.__opened = null; window.open = (u) => { window.__opened = u; return null; }; });
-  await page.click("text=Open suggestion on GitHub");
-  const url = await page.evaluate(() => window.__opened);
-  const u = new URL(url);
-  const okHost = u.hostname === "github.com" && u.pathname === "/FrenchFive/Spetral_Game/issues/new";
-  const okParams = u.searchParams.get("template") === "spectrum.yml" && u.searchParams.get("left") === "White lie" && u.searchParams.get("right") === "Unforgivable lie";
-  if (!okHost || !okParams) throw new Error("SUGGEST FAIL: bad URL " + url);
-  log("✓ suggest: opens prefilled GitHub issue form with left/right");
+  await page.fill("input[placeholder='e.g. White lie']", "Princess treatment");
+  await page.fill("input[placeholder='e.g. Unforgivable lie']", "Bare minimum");
+  await page.click("text=Send suggestion");
+  await page.waitForSelector("text=queued for the deck", { timeout: 8000 });
+  if (!posted || posted.left !== "Princess treatment" || posted.right !== "Bare minimum") throw new Error("SUGGEST FAIL: bad payload " + JSON.stringify(posted));
+  log("✓ suggest: posts {left,right} to the worker — no GitHub for the player");
   await ctx.close();
 }
 

@@ -28,6 +28,10 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run build
+        env:
+          # optional: set this repo variable to your suggestion Worker URL to enable
+          # one-click in-app suggestions (see worker/README.md). Safe to leave unset.
+          VITE_SUGGEST_ENDPOINT: ${{ vars.SUGGEST_ENDPOINT }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

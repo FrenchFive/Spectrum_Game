@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github } from "lucide-react";
+import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github, Send } from "lucide-react";
 import { btn, suggestUrl } from "./constants";
+
+// Optional: a serverless Worker URL that creates the GitHub issue for the player.
+// Set via the VITE_SUGGEST_ENDPOINT build var. If absent, we fall back to opening
+// the GitHub issue form so the feature still works with zero setup.
+const SUGGEST_ENDPOINT = import.meta.env.VITE_SUGGEST_ENDPOINT;
 import { ThemeBar } from "./ui";
 import { useParty } from "./useParty";
 import LocalGame from "./LocalGame";
@@ -13,7 +18,7 @@ function Header() {
         <Target size={17} color="#0b0e13" strokeWidth={2.6} />
       </div>
       <div>
-        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 19, letterSpacing: "-0.02em", lineHeight: 1 }}>SPECTRA</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 19, letterSpacing: "-0.02em", lineHeight: 1 }}>SPECTRUM</div>
         <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>read the master's mind</div>
       </div>
     </div>
@@ -115,13 +120,29 @@ export default function App() {
 function SuggestSpectrum({ onBack }) {
   const [left, setLeft] = useState("");
   const [right, setRight] = useState("");
-  const [sent, setSent] = useState(false);
+  const [state, setState] = useState("idle"); // idle | sending | sent | error
   const ready = left.trim() && right.trim();
-  const submit = () => {
-    if (!ready) return;
-    window.open(suggestUrl(left.trim(), right.trim()), "_blank", "noopener");
-    setSent(true);
+  const edit = (set) => (e) => { set(e.target.value); setState("idle"); };
+
+  const submit = async () => {
+    if (!ready || state === "sending") return;
+    if (SUGGEST_ENDPOINT) {
+      setState("sending");
+      try {
+        const res = await fetch(SUGGEST_ENDPOINT, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ left: left.trim(), right: right.trim() }),
+        });
+        if (!res.ok) throw new Error();
+        setState("sent"); setLeft(""); setRight("");
+      } catch { setState("error"); }
+    } else {
+      // no worker configured → fall back to the GitHub issue form (still works)
+      window.open(suggestUrl(left.trim(), right.trim()), "_blank", "noopener");
+      setState("sent");
+    }
   };
+
   const field = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e7ecf3", fontSize: 15 };
   return (
     <div className="space-y-5">
@@ -129,28 +150,32 @@ function SuggestSpectrum({ onBack }) {
       <div>
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 22 }}>Suggest a spectrum</div>
         <p className="text-sm mt-1" style={{ color: "#9aa4b4", lineHeight: 1.5 }}>
-          Two opposing poles for a new round. Submitting opens a pull request on GitHub automatically — a maintainer just reviews and merges it into the deck.
+          Two opposing poles for a new round. Good ones get added to the deck for everyone.
         </p>
       </div>
       <div className="space-y-2">
         <label className="text-[11px] tracking-[0.18em] uppercase" style={{ color: "#7dd3fc" }}>Left pole</label>
-        <input value={left} maxLength={40} onChange={(e) => setLeft(e.target.value)} placeholder="e.g. White lie"
+        <input value={left} maxLength={40} onChange={edit(setLeft)} placeholder="e.g. White lie"
           className="w-full px-4 py-3 rounded-xl outline-none" style={field} />
         <label className="text-[11px] tracking-[0.18em] uppercase block pt-1" style={{ color: "#fdba74" }}>Right pole</label>
-        <input value={right} maxLength={40} onChange={(e) => setRight(e.target.value)} placeholder="e.g. Unforgivable lie"
+        <input value={right} maxLength={40} onChange={edit(setRight)} placeholder="e.g. Unforgivable lie"
           className="w-full px-4 py-3 rounded-xl outline-none" style={field} />
       </div>
       {ready && <ThemeBar theme={[left.trim(), right.trim()]} />}
-      <button onClick={submit} disabled={!ready}
+      <button onClick={submit} disabled={!ready || state === "sending"}
         className={`${btn} w-full py-4 flex items-center justify-center gap-2`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700, fontSize: 16 }}>
-        <Github size={18} /> Open suggestion on GitHub
+        {SUGGEST_ENDPOINT ? <Send size={18} /> : <Github size={18} />}
+        {state === "sending" ? "Sending…" : SUGGEST_ENDPOINT ? "Send suggestion" : "Suggest on GitHub"}
       </button>
-      {sent && (
+      {state === "sent" && (
         <p className="text-center text-[13px]" style={{ color: "#86efac" }}>
-          A GitHub tab opened — submit the issue there and a pull request is created automatically. Thanks for contributing!
+          {SUGGEST_ENDPOINT ? "Sent! Your spectrum is queued for the deck — thanks! 🎯" : "A GitHub tab opened — submit it there to finish."}
         </p>
       )}
-      <p className="text-center text-[12px]" style={{ color: "#5b6675" }}>Opens GitHub in a new tab · no account data leaves this app.</p>
+      {state === "error" && <p className="text-center text-[13px]" style={{ color: "#fca5a5" }}>Couldn't send just now — please try again.</p>}
+      <p className="text-center text-[12px]" style={{ color: "#5b6675" }}>
+        {SUGGEST_ENDPOINT ? "No account needed — sent straight from the app." : "Opens GitHub in a new tab · no account data leaves this app."}
+      </p>
     </div>
   );
 }

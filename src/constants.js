@@ -212,7 +212,7 @@ export const btn = "rounded-xl font-semibold transition-all active:scale-[0.97] 
 // ---------- COMMUNITY SUGGESTIONS ----------
 // Suggesting a spectrum opens a prefilled GitHub issue form; a workflow turns it into a
 // labelled PR automatically. No tokens in the client — the user authenticates on GitHub.
-export const REPO = "FrenchFive/Spetral_Game";
+export const REPO = "FrenchFive/Spectrum_Game";
 export const suggestUrl = (left, right) => {
   const params = new URLSearchParams({
     template: "spectrum.yml",

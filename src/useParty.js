@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { joinRoom, selfId } from "trystero/nostr";
 import { THEMES, shuffle, newTarget, scoreFor } from "./constants";
 
-const APP_ID = "spectra-lr-game-v1";
+const APP_ID = "spectrum-lr-game-v1";
 // Curated, reliable public Nostr relays for signaling (avoids dead defaults).
 // Trystero only uses these to introduce peers; gameplay is direct WebRTC.
 const RELAY_URLS = [
@@ -22,13 +22,13 @@ export const genCode = () => Array.from({ length: 4 }, () => CODE_ALPHABET[Math.
 // stable per-browser identity so a refresh/rejoin keeps your seat + score
 function persistentPid() {
   try {
-    let p = localStorage.getItem("spectra_pid");
-    if (!p) { p = selfId + "-" + Math.random().toString(36).slice(2, 8); localStorage.setItem("spectra_pid", p); }
+    let p = localStorage.getItem("spectrum_pid");
+    if (!p) { p = selfId + "-" + Math.random().toString(36).slice(2, 8); localStorage.setItem("spectrum_pid", p); }
     return p;
   } catch (e) { return selfId; }
 }
-const savedName = () => { try { return localStorage.getItem("spectra_name") || ""; } catch (e) { return ""; } };
-const saveName = (n) => { try { localStorage.setItem("spectra_name", n); } catch (e) {} };
+const savedName = () => { try { return localStorage.getItem("spectrum_name") || ""; } catch (e) { return ""; } };
+const saveName = (n) => { try { localStorage.setItem("spectrum_name", n); } catch (e) {} };
 
 const connectedPlayers = (room) => room.players.filter((p) => p.connected);
 

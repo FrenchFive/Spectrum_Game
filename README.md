@@ -1,4 +1,4 @@
-# SPECTRA — Left/Right spectrum guessing game
+# SPECTRUM — Left/Right spectrum guessing game
 
 A *Wavelength*-style party game. One **Master** secretly sees a point on a spectrum and
 gives a one-word clue; everyone else drags a needle on a half-circle dial to guess where
@@ -14,8 +14,7 @@ Two ways to play:
 
 ### Anti-cheat
 The secret target is generated and held **only on the Master's device** and is never sent
-to guessers until the reveal — so a guesser can't peek at the answer in dev tools. Scores
-are computed by the Master at reveal and broadcast by the host.
+to guessers until the reveal — so a guesser can't peek at the answer in dev tools.
 
 ## Develop
 
@@ -24,39 +23,48 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-## Build
+## Build & deploy
 
-```bash
-npm run build      # outputs to dist/
-npm run preview    # preview the production build
-```
-
-## Deploy (GitHub Pages)
-
-A workflow at `.github/workflows/deploy.yml` builds and deploys on every push to `main`.
-One-time setup: in the repo, go to **Settings → Pages → Build and deployment → Source**
-and select **GitHub Actions**. After the next push the game is live at:
+`npm run build` outputs to `dist/`. A workflow at `.github/workflows/deploy.yml` builds
+and deploys to GitHub Pages on every push to `main`. One-time setup: **Settings → Pages →
+Source → GitHub Actions**. The game then lives at:
 
 ```
-https://<your-user>.github.io/Spetral_Game/
+https://<your-user>.github.io/Spectrum_Game/
 ```
 
-Share that link (or `…/?room=CODE`) with friends to play online. The Vite `base` is set to
-`/Spetral_Game/` for production in `vite.config.js` — change it if you rename the repo.
+The Vite `base` is `/Spectrum_Game/` for production (`vite.config.js`) — keep it in sync
+with the repo name.
+
+## Community suggestions
+
+Players can suggest new Left/Right spectra from inside the game (Home → *Suggest a
+Left/Right spectrum*). A GitHub Action turns each suggestion into a **pull request labelled
+`new-spectrum`** (distinct from code PRs) that adds the pair to the deck — review and merge
+to ship it.
+
+- **Zero setup:** out of the box, the in-app button opens a prefilled GitHub issue.
+- **Frictionless (recommended):** deploy the tiny Worker in [`worker/`](./worker/README.md)
+  (~5 min, no CLI) so players submit silently without ever touching GitHub. Set the repo
+  variable `SUGGEST_ENDPOINT` to the Worker URL and redeploy.
+
+Also enable **Settings → Actions → General → "Allow GitHub Actions to create and approve
+pull requests"** so the suggestion PRs can be opened automatically.
 
 ## End-to-end test
 
-`smoke.mjs` drives a headless browser through a full local round **and** a real two-browser
-online round (P2P connect → lobby sync → spin → clue → guess → reveal → score), and asserts
-the guesser never receives the target. To run it:
+`smoke.mjs` drives a headless browser through a full local round, the suggestion flow, and
+a real two-browser online round (P2P connect → lobby → spin → clue → live guessing →
+spectator reveal charge → staged reveal → scores), asserting the guesser never receives the
+target. To run it:
 
 ```bash
 npm i -D playwright && npx playwright install chromium
-npm run dev -- --port 5174 &     # in one shell
-node smoke.mjs                   # in another
+npm run dev -- --port 5174 &
+node smoke.mjs
 ```
 
 ## Tech
 
 React + Vite + Tailwind · SVG dial · Canvas confetti · Web Vibration & Web Share APIs ·
-Trystero (WebRTC) for online play.
+Trystero (WebRTC) for online play · optional Cloudflare Worker for suggestions.

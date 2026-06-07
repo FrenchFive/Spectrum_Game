@@ -72,7 +72,7 @@ export default function OnlineGame({ party, onExit }) {
   };
   const share = async () => {
     try {
-      if (navigator.share) await navigator.share({ title: "Spectra", text: `Join my Spectra game — code ${room.code}`, url: link });
+      if (navigator.share) await navigator.share({ title: "Spectrum", text: `Join my Spectrum game — code ${room.code}`, url: link });
       else copy("link", link);
     } catch (e) {}
   };
