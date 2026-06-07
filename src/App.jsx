@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github, Send, List, Search } from "lucide-react";
-import { btn, suggestUrl, THEMES } from "./constants";
+import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github, Send, List, Search, Eye, MoveHorizontal } from "lucide-react";
+import { btn, suggestUrl, THEMES, clampA } from "./constants";
+import { DialBoard } from "./Dial";
 
 // Optional: a serverless Worker URL that creates the GitHub issue for the player.
 // Set via the VITE_SUGGEST_ENDPOINT build var. If absent, we fall back to opening
@@ -16,16 +17,96 @@ import { useParty } from "./useParty";
 import LocalGame from "./LocalGame";
 import OnlineGame from "./OnlineGame";
 
+// The brand mark — the gauge/needle motif from the favicon, drawn inline so the in-app
+// logo and the favicon are identical. `dome` adds a soft glow for hero use.
+function Logo({ size = 32, glow = false }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" style={glow ? { filter: "drop-shadow(0 4px 16px rgba(34,211,238,0.35))" } : undefined}>
+      <defs>
+        <linearGradient id="logoArc" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#4ade80" />
+          <stop offset="1" stopColor="#22d3ee" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7" fill="#0b0e13" />
+      <path d="M4 22 A12 12 0 0 1 28 22" fill="none" stroke="url(#logoArc)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="22" x2="23" y2="13" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="16" cy="22" r="2.6" fill="#e7ecf3" />
+    </svg>
+  );
+}
+
 function Header() {
   return (
-    <div className="flex items-center gap-2 mb-5">
-      <div className="grid place-items-center rounded-lg" style={{ width: 30, height: 30, background: "linear-gradient(135deg,#4ade80,#22d3ee)" }}>
-        <Target size={17} color="#0b0e13" strokeWidth={2.6} />
-      </div>
+    <div className="flex items-center gap-2.5 mb-5">
+      <Logo size={32} />
       <div>
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 19, letterSpacing: "-0.02em", lineHeight: 1 }}>SPECTRUM</div>
         <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>read the master's mind</div>
       </div>
+    </div>
+  );
+}
+
+// Live, self-playing dial on the landing page: the needle sweeps and the spectrum pair
+// cycles so visitors instantly see what they'll actually be playing.
+const HERO_THEMES = [
+  ["Underrated", "Overrated"],
+  ["A white lie", "Unforgivable"],
+  ["Cute", "Terrifying"],
+  ["Casual", "Formal"],
+  ["A toy", "A weapon"],
+  ["Lukewarm", "Scorching"],
+];
+
+function HeroDial() {
+  const [value, setValue] = useState(96);
+  const [idx, setIdx] = useState(0);
+  // a pleasant, deterministic bullseye position per theme
+  const target = clampA(58 + ((idx * 41) % 74));
+
+  useEffect(() => {
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setValue(target); return; }
+    let raf, start;
+    const loop = (t) => {
+      if (start == null) start = t;
+      const e = (t - start) / 1000;
+      setValue(clampA(92 + 56 * Math.sin(e * (2 * Math.PI) / 6.5)));
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+
+  useEffect(() => {
+    const id = setInterval(() => setIdx((i) => (i + 1) % HERO_THEMES.length), 3800);
+    return () => clearInterval(id);
+  }, []);
+
+  return <DialBoard theme={HERO_THEMES[idx]} value={value} target={target} forceNeedle revealStage={3} />;
+}
+
+const STEPS = [
+  { Icon: Eye, color: "#facc15", title: "The Master gives one word", text: "They see a hidden spot on the spectrum and drop a single clue." },
+  { Icon: MoveHorizontal, color: "#7dd3fc", title: "Everyone guesses", text: "Drag your needle to where you think that word lands." },
+  { Icon: Target, color: "#4ade80", title: "Closer is more points", text: "Nail the bullseye to clean up. Read the room, win the round." },
+];
+
+function HowItWorks() {
+  return (
+    <div className="space-y-2.5">
+      {STEPS.map(({ Icon, color, title, text }, i) => (
+        <div key={i} className="flex items-start gap-3 rounded-xl px-3.5 py-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="grid place-items-center rounded-lg shrink-0 mt-0.5" style={{ width: 30, height: 30, background: `${color}1f` }}>
+            <Icon size={16} color={color} />
+          </div>
+          <div>
+            <div className="text-[14px] font-semibold" style={{ color: "#e7ecf3" }}>{title}</div>
+            <div className="text-[13px]" style={{ color: "#8a94a6", lineHeight: 1.45 }}>{text}</div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -57,32 +138,56 @@ export default function App() {
 
         {/* HOME */}
         {mode === "home" && (
-          <div className="space-y-4">
-            <p style={{ color: "#9aa4b4", fontSize: 14, lineHeight: 1.55 }}>
-              One <b style={{ color: "#e7ecf3" }}>Master</b> sees a hidden angle on the spectrum and gives a one-word clue. Everyone else drags the needle to guess where it landed. Closer to the bullseye = more points.
-            </p>
-            <button onClick={() => setMode("local")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(74,222,128,0.14)" }}><Users size={22} color="#86efac" /></div>
-              <div className="flex-1">
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Pass &amp; play</div>
-                <div className="text-sm" style={{ color: "#8a94a6" }}>One device, passed around the room</div>
+          <div className="space-y-6">
+            {/* HERO */}
+            <div className="space-y-3">
+              <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 30, lineHeight: 1.05, letterSpacing: "-0.02em" }}>
+                One word. <span style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Where does it land?</span>
+              </h1>
+              <p style={{ color: "#9aa4b4", fontSize: 15, lineHeight: 1.55 }}>
+                The wildly fun party game of reading minds. One clue, a hidden target, and everyone racing to guess the same wavelength.
+              </p>
+              <HeroDial />
+              <div className="flex items-center justify-center gap-2 text-[12px]" style={{ color: "#6b7686" }}>
+                <span>Free</span><span>·</span><span>No sign-up</span><span>·</span><span>2–8 players</span>
               </div>
-              <ArrowRight size={18} color="#6b7686" />
-            </button>
-            <button onClick={() => setMode("onlineEntry")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(34,211,238,0.14)" }}><Wifi size={22} color="#67e8f9" /></div>
-              <div className="flex-1">
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Play online</div>
-                <div className="text-sm" style={{ color: "#8a94a6" }}>Share a code, each on their own phone</div>
-              </div>
-              <ArrowRight size={18} color="#6b7686" />
-            </button>
-            <button onClick={() => setMode("suggest")} className="w-full flex items-center justify-center gap-2 py-2 text-sm" style={{ color: "#8a94a6" }}>
-              <Lightbulb size={15} color="#facc15" /> Suggest a Left/Right spectrum
-            </button>
-            <button onClick={() => setMode("browse")} className="w-full flex items-center justify-center gap-2 pb-1 text-sm" style={{ color: "#8a94a6" }}>
-              <List size={15} color="#7dd3fc" /> Browse the spectrum deck ({THEMES.length})
-            </button>
+            </div>
+
+            {/* PRIMARY CTAs */}
+            <div className="space-y-3">
+              <button onClick={() => setMode("local")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(74,222,128,0.14)" }}><Users size={22} color="#86efac" /></div>
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Pass &amp; play</div>
+                  <div className="text-sm" style={{ color: "#8a94a6" }}>One device, passed around the room</div>
+                </div>
+                <ArrowRight size={18} color="#6b7686" />
+              </button>
+              <button onClick={() => setMode("onlineEntry")} className="w-full rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform text-left" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div className="grid place-items-center rounded-xl shrink-0" style={{ width: 46, height: 46, background: "rgba(34,211,238,0.14)" }}><Wifi size={22} color="#67e8f9" /></div>
+                <div className="flex-1">
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>Play online</div>
+                  <div className="text-sm" style={{ color: "#8a94a6" }}>Share a code, each on their own phone</div>
+                </div>
+                <ArrowRight size={18} color="#6b7686" />
+              </button>
+            </div>
+
+            {/* HOW IT WORKS */}
+            <div className="space-y-3">
+              <div className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>How it works</div>
+              <HowItWorks />
+            </div>
+
+            {/* COMMUNITY */}
+            <div className="pt-1 space-y-1">
+              <button onClick={() => setMode("browse")} className="w-full flex items-center justify-center gap-2 py-2 text-sm" style={{ color: "#8a94a6" }}>
+                <List size={15} color="#7dd3fc" /> Browse the spectrum deck ({THEMES.length})
+              </button>
+              <button onClick={() => setMode("suggest")} className="w-full flex items-center justify-center gap-2 pb-1 text-sm" style={{ color: "#8a94a6" }}>
+                <Lightbulb size={15} color="#facc15" /> Suggest a Left/Right spectrum
+              </button>
+            </div>
           </div>
         )}
 
