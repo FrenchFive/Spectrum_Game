@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { EyeOff, Eye, SkipForward, Lock, ArrowRight, Crown, RotateCcw, Flag, ArrowLeft } from "lucide-react";
 import { THEMES, PLAYER_COLORS, btn, shuffle, newTarget, scoreFor } from "./constants";
 import { DialBoard } from "./Dial";
-import { HoldButton, Confetti, PlayerEditor } from "./ui";
+import { HoldButton, Confetti, PlayerEditor, useRevealStage } from "./ui";
 
 export default function LocalGame({ onExit }) {
   const [phase, setPhase] = useState("setup");
@@ -86,6 +86,7 @@ export default function LocalGame({ onExit }) {
 
   const master = players[masterIdx];
   const curGuesser = players[guessOrder[guessPtr]];
+  const stage = useRevealStage(phase === "reveal" && revealed);
 
   useEffect(() => {
     if (phase !== "master") return;
@@ -165,9 +166,9 @@ export default function LocalGame({ onExit }) {
           ) : (
             <>
               <p className="text-center text-sm" style={{ color: "#86efac" }}>This is the secret target. Give a clue that lands the guessers on the bullseye.</p>
-              <input value={clue} maxLength={40} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
-                className="w-full px-4 py-3.5 rounded-xl outline-none text-center"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600 }} />
+              <textarea value={clue} maxLength={140} rows={2} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
+                className="w-full px-4 py-3 rounded-xl outline-none text-center resize-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600, lineHeight: 1.35 }} />
               <button onClick={confirmClue} disabled={!clue.trim()}
                 className={`${btn} w-full py-3.5 flex items-center justify-center gap-2`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700, fontSize: 16 }}>
                 Lock clue <ArrowRight size={16} />
@@ -201,24 +202,29 @@ export default function LocalGame({ onExit }) {
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#6b7686" }}>clue </span>
             <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17 }}>“{clue}”</span>
           </div>
-          <DialBoard theme={theme} value={target} target={revealed ? target : null}
+          <DialBoard theme={theme} value={target} target={revealed ? target : null} showNumbers={revealed} revealStage={stage}
             markers={revealed ? results.map((r) => ({ angle: r.guess, color: PLAYER_COLORS[r.idx % PLAYER_COLORS.length] })) : []} onChange={undefined} />
           {!revealed ? (
             <>
               <HoldButton onComplete={() => setRevealed(true)} />
               <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>press &amp; hold — let go to stop</p>
             </>
+          ) : stage < 4 ? (
+            <p className="text-center text-sm animate-pulse" style={{ color: "#67e8f9" }}>
+              {stage === 0 ? "Here come the guesses…" : stage < 3 ? "Scoring zones appearing…" : "Tallying the round…"}
+            </p>
           ) : (
             <>
               {results.some((r) => r.pts === 4) && <Confetti />}
               <div className="space-y-1.5">
-                {players.map((p, i) => ({ ...p, i })).sort((a, b) => b.score - a.score).map((p) => {
+                {players.map((p, i) => ({ ...p, i })).sort((a, b) => b.score - a.score).map((p, rank) => {
                   const isMaster = p.i === masterIdx;
                   const gained = isMaster ? null : (results.find((r) => r.idx === p.i)?.pts ?? 0);
                   return (
-                    <div key={p.i} className="flex items-center justify-between rounded-lg px-3 py-2.5"
-                      style={{ background: isMaster ? "rgba(250,204,21,0.07)" : "rgba(255,255,255,0.03)", border: isMaster ? "1px solid rgba(250,204,21,0.18)" : "1px solid transparent" }}>
+                    <div key={p.i} className="fadeup flex items-center justify-between rounded-lg px-3 py-2.5"
+                      style={{ animationDelay: `${rank * 70}ms`, background: isMaster ? "rgba(250,204,21,0.07)" : "rgba(255,255,255,0.03)", border: isMaster ? "1px solid rgba(250,204,21,0.18)" : "1px solid transparent" }}>
                       <span className="flex items-center gap-2 text-sm">
+                        <span style={{ fontFamily: "'Space Mono',monospace", color: "#5b6675", width: 14, fontSize: 12 }}>{rank + 1}</span>
                         {isMaster ? <Crown size={15} color="#facc15" /> : <span style={{ width: 9, height: 9, borderRadius: 9, background: PLAYER_COLORS[p.i % PLAYER_COLORS.length] }} />}
                         <span className="font-semibold">{p.name}</span>
                         {isMaster && <span style={{ color: "#8a94a6", fontWeight: 400 }}>(master)</span>}

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Eye, Lock, ArrowRight, Crown, RotateCcw, SkipForward, Flag, ArrowLeft, Copy, Check, Share2, Users, Wifi, WifiOff } from "lucide-react";
 import { PLAYER_COLORS, btn } from "./constants";
 import { DialBoard } from "./Dial";
-import { HoldButton, Confetti, RevealMeter } from "./ui";
+import { HoldButton, Confetti, RevealMeter, useRevealStage } from "./ui";
 
 // master-only: spin the needle ~3 loops, decelerate, land on the secret target
 function SpinDial({ theme, target, onDone }) {
@@ -54,6 +54,9 @@ export default function OnlineGame({ party, onExit }) {
     if (room.status === "guessing" && lastRound.current !== room.round) { setLocked(false); setNeedle(90); }
     lastRound.current = room.round;
   }, [room?.status, room?.round]);
+
+  // suspenseful staged reveal (bands 4→3→2, then scoreboard)
+  const revealStage = useRevealStage(!!(room && room.status === "reveal"));
 
   if (!room) return null;
 
@@ -233,16 +236,20 @@ export default function OnlineGame({ party, onExit }) {
           {Header}{clueCard}
           <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} markers={liveMarkers} onChange={undefined} />
           <Legend showLock />
-          <p className="text-center text-sm" style={{ color: "#8a94a6" }}>
-            Watching guesses land — <b style={{ color: "#67e8f9", fontFamily: "'Space Mono',monospace" }}>{localLocked}/{guesserCount}</b> locked in.
-          </p>
           {allLocked ? (
             <>
+              <div className="rounded-xl px-4 py-3 flex items-center justify-center gap-2 spinpop" style={{ background: "rgba(74,222,128,0.14)", border: "1px solid rgba(74,222,128,0.45)", boxShadow: "0 0 22px rgba(74,222,128,0.25)" }}>
+                <Check size={18} color="#4ade80" />
+                <span style={{ color: "#86efac", fontWeight: 700 }}>Everyone's locked in — reveal unlocked!</span>
+              </div>
               <HoldButton onComplete={party.revealNow} onProgress={party.pushCharge} />
-              <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>everyone's in — hold to reveal</p>
+              <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>hold to reveal</p>
             </>
           ) : (
             <>
+              <p className="text-center text-sm" style={{ color: "#8a94a6" }}>
+                Watching guesses land — <b style={{ color: "#67e8f9", fontFamily: "'Space Mono',monospace" }}>{localLocked}/{guesserCount}</b> locked in.
+              </p>
               <div className="w-full py-4 rounded-xl flex items-center justify-center gap-2 font-bold" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#5b6675", fontSize: 16 }}>
                 <Lock size={17} /> Waiting for all guesses…
               </div>
@@ -260,7 +267,7 @@ export default function OnlineGame({ party, onExit }) {
           <DialBoard theme={room.theme} value={needle} target={null} markers={liveMarkers} onChange={undefined} />
           <Legend />
           <p className="text-center text-sm" style={{ color: "#86efac" }}>
-            Locked in! Watch the others move — {room.lockedCount}/{guesserCount} in
+            {room.lockedCount >= guesserCount ? "Everyone's in — get ready!" : `Locked in! Watch the others — ${room.lockedCount}/${guesserCount} in`}
           </p>
           <RevealMeter charge={party.revealCharge} />
         </div>
@@ -286,6 +293,7 @@ export default function OnlineGame({ party, onExit }) {
   if (room.status === "reveal") {
     const idxOf = (pid) => players.findIndex((p) => p.pid === pid);
     const gotBullseye = room.results.some((r) => r.pts === 4);
+    const showScores = revealStage >= 4;
     return (
       <div className="space-y-4">
         {Header}
@@ -293,42 +301,51 @@ export default function OnlineGame({ party, onExit }) {
           <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#6b7686" }}>clue </span>
           <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17 }}>“{room.clue}”</span>
         </div>
-        <DialBoard theme={room.theme} value={room.target ?? 90} target={room.target}
+        <DialBoard theme={room.theme} value={room.target ?? 90} target={room.target} showNumbers revealStage={revealStage}
           markers={room.results.map((r) => ({ angle: r.guess, color: PLAYER_COLORS[idxOf(r.pid) % PLAYER_COLORS.length] }))} onChange={undefined} />
-        {gotBullseye && <Confetti />}
-        <div className="space-y-1.5">
-          {players.map((p) => ({ ...p, i: idxOf(p.pid) })).sort((a, b) => b.score - a.score).map((p) => {
-            const isMaster = p.pid === room.masterId;
-            const gained = isMaster ? null : (room.results.find((r) => r.pid === p.pid)?.pts ?? 0);
-            return (
-              <div key={p.pid} className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: isMaster ? "rgba(250,204,21,0.07)" : "rgba(255,255,255,0.03)", border: isMaster ? "1px solid rgba(250,204,21,0.18)" : "1px solid transparent", opacity: p.connected ? 1 : 0.5 }}>
-                <span className="flex items-center gap-2 text-sm">
-                  {isMaster ? <Crown size={15} color="#facc15" /> : <span style={{ width: 9, height: 9, borderRadius: 9, background: PLAYER_COLORS[p.i % PLAYER_COLORS.length] }} />}
-                  <span className="font-semibold">{p.name}</span>
-                  {p.pid === myPid && <span style={{ color: "#6b7686", fontWeight: 400 }}>(you)</span>}
-                  {isMaster && <span style={{ color: "#8a94a6", fontWeight: 400 }}>(master)</span>}
-                </span>
-                <span className="flex items-center gap-2.5">
-                  {gained != null && (
-                    <span className="text-[12px] px-1.5 py-0.5 rounded" style={{ fontFamily: "'Space Mono', monospace", color: gained === 4 ? "#4ade80" : gained ? "#86efac" : "#5b6675", background: gained ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)" }}>+{gained}</span>
-                  )}
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e7ecf3", width: 26, textAlign: "right" }}>{p.score}</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-        {amMaster ? (
-          <div className="flex gap-2">
-            <button onClick={party.endGame} className={`${btn} flex-1 px-4 py-3.5 flex items-center justify-center gap-2 whitespace-nowrap`} style={{ background: "rgba(255,255,255,0.05)", color: "#9aa4b4" }}>
-              <Flag size={15} /> End game
-            </button>
-            <button onClick={party.nextRound} className={`${btn} flex-[1.6] px-5 py-3.5 flex items-center justify-center gap-2 whitespace-nowrap`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700 }}>
-              Next round <ArrowRight size={17} />
-            </button>
-          </div>
+        {!showScores ? (
+          <p className="text-center text-sm animate-pulse" style={{ color: "#67e8f9" }}>
+            {revealStage === 0 ? "Here come the guesses…" : revealStage < 3 ? "Scoring zones appearing…" : "Tallying the round…"}
+          </p>
         ) : (
-          <p className="text-center text-sm" style={{ color: "#6b7686" }}>Waiting for {master?.name} to continue…</p>
+          <>
+            {gotBullseye && <Confetti />}
+            <div className="space-y-1.5">
+              {players.map((p) => ({ ...p, i: idxOf(p.pid) })).sort((a, b) => b.score - a.score).map((p, rank) => {
+                const isMaster = p.pid === room.masterId;
+                const gained = isMaster ? null : (room.results.find((r) => r.pid === p.pid)?.pts ?? 0);
+                return (
+                  <div key={p.pid} className="fadeup flex items-center justify-between rounded-lg px-3 py-2.5" style={{ animationDelay: `${rank * 70}ms`, background: isMaster ? "rgba(250,204,21,0.07)" : "rgba(255,255,255,0.03)", border: isMaster ? "1px solid rgba(250,204,21,0.18)" : "1px solid transparent", opacity: p.connected ? 1 : 0.5 }}>
+                    <span className="flex items-center gap-2 text-sm">
+                      <span style={{ fontFamily: "'Space Mono',monospace", color: "#5b6675", width: 14, fontSize: 12 }}>{rank + 1}</span>
+                      {isMaster ? <Crown size={15} color="#facc15" /> : <span style={{ width: 9, height: 9, borderRadius: 9, background: PLAYER_COLORS[p.i % PLAYER_COLORS.length] }} />}
+                      <span className="font-semibold">{p.name}</span>
+                      {p.pid === myPid && <span style={{ color: "#6b7686", fontWeight: 400 }}>(you)</span>}
+                      {isMaster && <span style={{ color: "#8a94a6", fontWeight: 400 }}>(master)</span>}
+                    </span>
+                    <span className="flex items-center gap-2.5">
+                      {gained != null && (
+                        <span className="text-[12px] px-1.5 py-0.5 rounded" style={{ fontFamily: "'Space Mono', monospace", color: gained === 4 ? "#4ade80" : gained ? "#86efac" : "#5b6675", background: gained ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.04)" }}>+{gained}</span>
+                      )}
+                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e7ecf3", width: 26, textAlign: "right" }}>{p.score}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {amMaster ? (
+              <div className="flex gap-2">
+                <button onClick={party.endGame} className={`${btn} flex-1 px-4 py-3.5 flex items-center justify-center gap-2 whitespace-nowrap`} style={{ background: "rgba(255,255,255,0.05)", color: "#9aa4b4" }}>
+                  <Flag size={15} /> End game
+                </button>
+                <button onClick={party.nextRound} className={`${btn} flex-[1.6] px-5 py-3.5 flex items-center justify-center gap-2 whitespace-nowrap`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700 }}>
+                  Next round <ArrowRight size={17} />
+                </button>
+              </div>
+            ) : (
+              <p className="text-center text-sm" style={{ color: "#6b7686" }}>Waiting for {master?.name} to continue…</p>
+            )}
+          </>
         )}
       </div>
     );
@@ -378,9 +395,9 @@ function MasterClue({ party }) {
       </div>
       <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} showNumbers onChange={undefined} markers={[]} />
       <p className="text-center text-sm" style={{ color: "#86efac" }}>This is your secret target. Give a clue that lands the guessers on the bullseye.</p>
-      <input value={clue} maxLength={40} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
-        className="w-full px-4 py-3.5 rounded-xl outline-none text-center"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600 }} />
+      <textarea value={clue} maxLength={140} rows={2} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
+        className="w-full px-4 py-3 rounded-xl outline-none text-center resize-none"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600, lineHeight: 1.35 }} />
       <button onClick={() => clue.trim() && party.submitClue(clue.trim())} disabled={!clue.trim()}
         className={`${btn} w-full py-3.5 flex items-center justify-center gap-2`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700, fontSize: 16 }}>
         Lock clue <ArrowRight size={16} />

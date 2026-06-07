@@ -125,7 +125,7 @@ export function useParty() {
       case "clue": {
         if (from !== masterPeerId(r) && from !== "self") return;
         if (r.status !== "clue" && r.status !== "spin") return;
-        r.clue = String(payload.clue || "").slice(0, 40); r.status = "guessing"; r.lockedCount = 0;
+        r.clue = String(payload.clue || "").slice(0, 140); r.status = "guessing"; r.lockedCount = 0;
         broadcast();
         break;
       }

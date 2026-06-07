@@ -29,7 +29,7 @@ const browser = await chromium.launch();
   await page.click("text=Play this round");
   await page.click("button:has-text('Tap when ready')"); // master handoff
   await page.waitForSelector("text=secret target", { timeout: 6000 });
-  await page.fill("input[placeholder='Type a word or phrase…']", "test clue");
+  await page.fill("textarea[placeholder='Type a word or phrase…']", "test clue");
   await page.click("text=Lock clue");
   await page.click("button:has-text('Tap when ready')"); // guesser handoff
   await page.waitForSelector("text=Lock in guess");
@@ -92,7 +92,8 @@ try {
   if (/secret target/i.test(guestTextDuringClue)) throw new Error("ANTI-CHEAT FAIL: guest saw target");
   log("✓ online: anti-cheat — guest never shown the target");
 
-  await host.fill("input[placeholder='Type a word or phrase…']", "sunshine");
+  const longClue = "Not telling your gf you bought yourself a croissant";
+  await host.fill("textarea[placeholder='Type a word or phrase…']", longClue);
   await host.click("text=Lock clue");
 
   // reveal gate: before the guesser locks, the master must NOT be able to reveal
@@ -100,10 +101,15 @@ try {
   if (await host.locator("text=Hold to reveal").count()) throw new Error("GATE FAIL: reveal available before all locked");
   log("✓ online: reveal correctly gated until all guessers lock");
 
-  // guest guesses (needle defaults to 90) and locks in
+  // long clue (>40 chars) must survive in full on the guesser's screen
   await guest.waitForSelector("text=Lock in guess", { timeout: 12000 });
+  const guestClue = await guest.locator("body").innerText();
+  if (!guestClue.includes("croissant")) throw new Error("CLUE CAP FAIL: long clue was truncated");
+  log("✓ online: long clue typed and synced in full");
+
+  // guest guesses (needle defaults to 90) and locks in
   await guest.click("text=Lock in guess");
-  await guest.waitForSelector("text=Locked in!", { timeout: 8000 });
+  await guest.waitForSelector("text=about to reveal", { timeout: 8000 });
   log("✓ online: guest locked a guess");
 
   // master holds the reveal button to fire the reveal

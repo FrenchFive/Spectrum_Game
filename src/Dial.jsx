@@ -2,7 +2,7 @@ import React, { useRef, useCallback, useEffect } from "react";
 import { VBW, VBH, cx, cy, B4, B3, B2, clampA, pt, domePath, sectorPath } from "./constants";
 
 // ---------- DIAL ----------
-export function Dial({ value, onChange, target = null, markers = [], showNumbers = false, forceNeedle = false, pulseAt = null }) {
+export function Dial({ value, onChange, target = null, markers = [], showNumbers = false, forceNeedle = false, pulseAt = null, revealStage = 3 }) {
   const svgRef = useRef(null);
   const dragging = useRef(false);
 
@@ -48,23 +48,33 @@ export function Dial({ value, onChange, target = null, markers = [], showNumbers
 
       <path d={domePath()} fill="url(#domeGrad)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" />
 
-      {target !== null && (
-        <g opacity="0.96">
-          <path d={sectorPath(target - B2, target - B3)} fill="#16463d" />
-          <path d={sectorPath(target - B3, target - B4)} fill="#2f9c79" />
-          <path d={sectorPath(target - B4, target + B4)} fill="#4ade80" />
-          <path d={sectorPath(target + B4, target + B3)} fill="#2f9c79" />
-          <path d={sectorPath(target + B3, target + B2)} fill="#16463d" />
-          {showNumbers && [
-            { a: target, n: 4 }, { a: target - 10, n: 3 }, { a: target + 10, n: 3 },
-            { a: target - 20, n: 2 }, { a: target + 20, n: 2 },
-          ].map((m, i) => {
-            const p = pt(clampA(m.a)); const f = 0.74;
-            return <text key={i} x={cx + (p.x - cx) * f} y={cy + (p.y - cy) * f} fontSize="12" fontWeight="700"
-              fill="rgba(7,12,16,0.85)" textAnchor="middle" dominantBaseline="middle" style={{ fontFamily: "'Space Mono', monospace" }}>{m.n}</text>;
-          })}
-        </g>
-      )}
+      {target !== null && (() => {
+        const Num = ({ a, n }) => {
+          const p = pt(clampA(a)); const f = 0.74;
+          return <text x={cx + (p.x - cx) * f} y={cy + (p.y - cy) * f} fontSize="12" fontWeight="700"
+            fill="rgba(7,12,16,0.85)" textAnchor="middle" dominantBaseline="middle" style={{ fontFamily: "'Space Mono', monospace" }}>{n}</text>;
+        };
+        const tierStyle = (n) => ({ transition: "opacity .45s ease", opacity: revealStage >= n ? 0.96 : 0 });
+        return (
+          <g>
+            {/* paint outer→inner so the bullseye sits on top; reveal order is 4 → 3 → 2 via opacity */}
+            <g style={tierStyle(3)}>
+              <path d={sectorPath(target - B2, target - B3)} fill="#16463d" />
+              <path d={sectorPath(target + B3, target + B2)} fill="#16463d" />
+              {showNumbers && <><Num a={target - 20} n={2} /><Num a={target + 20} n={2} /></>}
+            </g>
+            <g style={tierStyle(2)}>
+              <path d={sectorPath(target - B3, target - B4)} fill="#2f9c79" />
+              <path d={sectorPath(target + B4, target + B3)} fill="#2f9c79" />
+              {showNumbers && <><Num a={target - 10} n={3} /><Num a={target + 10} n={3} /></>}
+            </g>
+            <g style={tierStyle(1)}>
+              <path d={sectorPath(target - B4, target + B4)} fill="#4ade80" />
+              {showNumbers && <Num a={target} n={4} />}
+            </g>
+          </g>
+        );
+      })()}
 
       {/* tick marks */}
       {Array.from({ length: 19 }).map((_, i) => {

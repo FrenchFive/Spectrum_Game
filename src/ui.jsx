@@ -72,6 +72,24 @@ export function RevealMeter({ charge = 0 }) {
   );
 }
 
+// Drives the suspenseful reveal: stage 0 = bands hidden (only needles), 1 = bullseye(4),
+// 2 = the 3-bands, 3 = the 2-bands, 4 = show the scoreboard. Resets when inactive.
+export function useRevealStage(active) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    if (!active) { setStage(0); return; }
+    setStage(0);
+    const timers = [
+      setTimeout(() => setStage(1), 400),
+      setTimeout(() => setStage(2), 850),
+      setTimeout(() => setStage(3), 1300),
+      setTimeout(() => setStage(4), 1850),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+  return stage;
+}
+
 export function Confetti() {
   const ref = useRef(null);
   useEffect(() => {

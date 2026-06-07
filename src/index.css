@@ -15,3 +15,5 @@ body { margin: 0; background: #0b0e13; }
 .lockpop { animation: lockpop .5s ease-out; }
 @keyframes spinpop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .spinpop { animation: spinpop .35s ease-out; }
+@keyframes fadeup { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+.fadeup { animation: fadeup .4s ease-out both; }
