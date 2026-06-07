@@ -5,7 +5,12 @@ import { btn, suggestUrl } from "./constants";
 // Optional: a serverless Worker URL that creates the GitHub issue for the player.
 // Set via the VITE_SUGGEST_ENDPOINT build var. If absent, we fall back to opening
 // the GitHub issue form so the feature still works with zero setup.
-const SUGGEST_ENDPOINT = import.meta.env.VITE_SUGGEST_ENDPOINT;
+// Normalize: a value without a scheme (e.g. "foo.workers.dev") would otherwise be
+// treated as a relative URL and POST to GitHub Pages (405), not the Worker.
+const rawSuggest = import.meta.env.VITE_SUGGEST_ENDPOINT;
+const SUGGEST_ENDPOINT = rawSuggest
+  ? (/^https?:\/\//i.test(rawSuggest) ? rawSuggest : `https://${rawSuggest}`)
+  : rawSuggest;
 import { ThemeBar } from "./ui";
 import { useParty } from "./useParty";
 import LocalGame from "./LocalGame";
