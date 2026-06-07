@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Eye, Lock, ArrowRight, Crown, RotateCcw, SkipForward, Flag, ArrowLeft, Copy, Check, Share2, Users, Wifi, WifiOff } from "lucide-react";
 import { PLAYER_COLORS, btn } from "./constants";
 import { DialBoard } from "./Dial";
-import { HoldButton, Confetti, RevealMeter, useRevealStage } from "./ui";
+import { HoldButton, Confetti, RevealMeter, useRevealStage, ClueThinking, ThemeBar } from "./ui";
 
 // master-only: spin the needle ~3 loops, decelerate, land on the secret target
 function SpinDial({ theme, target, onDone }) {
@@ -194,7 +194,17 @@ export default function OnlineGame({ party, onExit }) {
             <p className="text-center text-sm animate-pulse" style={{ color: "#67e8f9" }}>Spinning up your secret angle…</p>
           </>
         ) : (
-          <Waiting title={`${master?.name} is getting their angle`} sub="The dial is spinning on their screen." />
+          <>
+            {/* show the board + its two poles so guessers can already size up the spectrum */}
+            <DialBoard theme={room.theme} value={90} target={null} onChange={undefined} markers={[]} />
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex gap-1.5">
+                {[0, 1, 2, 3, 4].map((i) => <span key={i} style={{ width: 8, height: 8, borderRadius: 8, background: "#4ade80", animation: `thinkdot 1.1s ease-in-out ${i * 0.12}s infinite` }} />)}
+              </div>
+              <p className="text-center" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 18 }}>{master?.name} is getting their angle</p>
+              <p className="text-center text-sm" style={{ color: "#8a94a6" }}>Here's the spectrum you'll be reading.</p>
+            </div>
+          </>
         )}
       </div>
     );
@@ -203,7 +213,7 @@ export default function OnlineGame({ party, onExit }) {
   // ---------------- CLUE (master types) ----------------
   if (room.status === "clue") {
     if (amMaster) return <MasterClue party={party} />;
-    return <div className="space-y-4">{Header}<Waiting title={`${master?.name} is thinking of a clue`} sub="One word or short phrase to point you to the target." /></div>;
+    return <div className="space-y-4">{Header}<ThemeBar theme={room.theme} /><ClueThinking masterName={master?.name} /></div>;
   }
 
   // ---------------- GUESSING ----------------

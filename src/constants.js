@@ -208,3 +208,17 @@ export const shuffle = (arr) => {
 export const newTarget = () => clampA(5 + Math.random() * 170);
 
 export const btn = "rounded-xl font-semibold transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed";
+
+// ---------- COMMUNITY SUGGESTIONS ----------
+// Suggesting a spectrum opens a prefilled GitHub issue form; a workflow turns it into a
+// labelled PR automatically. No tokens in the client — the user authenticates on GitHub.
+export const REPO = "FrenchFive/Spetral_Game";
+export const suggestUrl = (left, right) => {
+  const params = new URLSearchParams({
+    template: "spectrum.yml",
+    title: `[Spectrum] ${left} ↔ ${right}`.slice(0, 90),
+    left,
+    right,
+  });
+  return `https://github.com/${REPO}/issues/new?${params.toString()}`;
+};

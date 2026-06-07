@@ -41,6 +41,26 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+// ---------- 1b) Suggest-a-spectrum builds the right prefilled GitHub URL ----------
+{
+  const ctx = await browser.newContext({ viewport: { width: 414, height: 896 }, hasTouch: true });
+  const page = await ctx.newPage();
+  watch(page, "suggest");
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.click("text=Suggest a Left/Right spectrum");
+  await page.fill("input[placeholder='e.g. White lie']", "White lie");
+  await page.fill("input[placeholder='e.g. Unforgivable lie']", "Unforgivable lie");
+  await page.evaluate(() => { window.__opened = null; window.open = (u) => { window.__opened = u; return null; }; });
+  await page.click("text=Open suggestion on GitHub");
+  const url = await page.evaluate(() => window.__opened);
+  const u = new URL(url);
+  const okHost = u.hostname === "github.com" && u.pathname === "/FrenchFive/Spetral_Game/issues/new";
+  const okParams = u.searchParams.get("template") === "spectrum.yml" && u.searchParams.get("left") === "White lie" && u.searchParams.get("right") === "Unforgivable lie";
+  if (!okHost || !okParams) throw new Error("SUGGEST FAIL: bad URL " + url);
+  log("✓ suggest: opens prefilled GitHub issue form with left/right");
+  await ctx.close();
+}
+
 // ---------- 2) Online: two browsers connect via Trystero + sync ----------
 let onlineOk = false;
 try {
@@ -87,7 +107,7 @@ try {
   await host.waitForSelector("text=secret target", { timeout: 12000 }); // spin completes -> clue
   log("✓ online: master saw the spin land + secret target");
   // anti-cheat: while master picks a clue, guest must NOT have the target/bands
-  await guest.waitForSelector("text=thinking of a clue", { timeout: 12000 });
+  await guest.waitForSelector("text=finding a clue", { timeout: 12000 });
   const guestTextDuringClue = await guest.locator("body").innerText();
   if (/secret target/i.test(guestTextDuringClue)) throw new Error("ANTI-CHEAT FAIL: guest saw target");
   log("✓ online: anti-cheat — guest never shown the target");

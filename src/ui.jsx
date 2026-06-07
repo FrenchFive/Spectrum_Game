@@ -90,6 +90,78 @@ export function useRevealStage(active) {
   return stage;
 }
 
+// Theatrical "master is finding a clue" wait: fakes a clue being typed, paused over,
+// and erased — over and over — with a blinking cursor, a dot wave, and rotating flavor.
+const THINK_FRAGMENTS = [
+  "hmm…", "maybe", "no, wait", "warmer", "almost", "scratch that", "a bit like",
+  "okay so", "kind of", "not quite", "ooh", "too obvious?", "think think",
+  "got it— no", "closer", "what about", "on the tip of my…", "ugh", "yes? no",
+];
+const THINK_FLAVOR = [
+  "scribbling something", "second-guessing it", "erasing that one", "staring into space",
+  "so close", "overthinking it", "chewing the pen", "doubting everything", "nearly there",
+];
+
+// The two spectrum poles as labelled pills — shown on waiting screens so guessers
+// can already start strategizing.
+export function ThemeBar({ theme }) {
+  return (
+    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <span className="flex-1 text-center px-3 py-2.5 rounded-lg font-bold text-[14px] uppercase tracking-[0.06em] leading-tight" style={{ color: "#7dd3fc", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.3)", fontFamily: "'Space Mono', monospace" }}>{theme[0]}</span>
+      <span className="text-zinc-600 text-sm shrink-0">↔</span>
+      <span className="flex-1 text-center px-3 py-2.5 rounded-lg font-bold text-[14px] uppercase tracking-[0.06em] leading-tight" style={{ color: "#fdba74", background: "rgba(251,146,60,0.12)", border: "1px solid rgba(251,146,60,0.3)", fontFamily: "'Space Mono', monospace" }}>{theme[1]}</span>
+    </div>
+  );
+}
+
+export function ClueThinking({ masterName = "The Master" }) {
+  const [text, setText] = useState("");
+  const [flavor, setFlavor] = useState(THINK_FLAVOR[0]);
+  const st = useRef({ p: 0, i: 0, mode: "type" });
+
+  useEffect(() => {
+    let alive = true, timer;
+    const step = () => {
+      if (!alive) return;
+      const s = st.current;
+      const frag = THINK_FRAGMENTS[s.p % THINK_FRAGMENTS.length];
+      let delay;
+      if (s.mode === "type") {
+        s.i++; setText(frag.slice(0, s.i));
+        delay = 70 + Math.random() * 95;
+        if (s.i >= frag.length) { s.mode = "pause"; delay = 650 + Math.random() * 700; }
+      } else if (s.mode === "pause") {
+        s.mode = "erase"; delay = 260;
+      } else {
+        s.i--; setText(frag.slice(0, Math.max(0, s.i)));
+        delay = 32 + Math.random() * 42;
+        if (s.i <= 0) { s.mode = "type"; s.p += 1 + Math.floor(Math.random() * 3); delay = 360 + Math.random() * 380; }
+      }
+      timer = setTimeout(step, delay);
+    };
+    timer = setTimeout(step, 450);
+    const flav = setInterval(() => { if (alive) setFlavor(THINK_FLAVOR[Math.floor(Math.random() * THINK_FLAVOR.length)]); }, 1900);
+    return () => { alive = false; clearTimeout(timer); clearInterval(flav); };
+  }, []);
+
+  return (
+    <div className="rounded-2xl flex flex-col items-center justify-center text-center" style={{ minHeight: 320, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", padding: 28 }}>
+      <div className="flex gap-1.5 mb-6">
+        {[0, 1, 2, 3, 4].map((i) => <span key={i} style={{ width: 8, height: 8, borderRadius: 8, background: "#4ade80", animation: `thinkdot 1.1s ease-in-out ${i * 0.12}s infinite` }} />)}
+      </div>
+      <div className="text-[11px] tracking-[0.22em] uppercase mb-3" style={{ color: "#6b7686" }}>{masterName} is finding a clue</div>
+      <div className="px-4 py-3 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,222,128,0.25)", minHeight: 52, minWidth: 220, maxWidth: "90%" }}>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 18, color: "#e7ecf3", whiteSpace: "pre" }}>
+          {text}
+          <span className="clueblink" style={{ display: "inline-block", width: 2, height: 19, background: "#4ade80", marginLeft: 3, verticalAlign: "middle" }} />
+        </span>
+      </div>
+      <div className="mt-4 text-sm" style={{ color: "#8a94a6" }}>{flavor}…</div>
+      <div className="mt-1 text-[11px]" style={{ color: "#5b6675" }}>take your time — the perfect word is worth it</div>
+    </div>
+  );
+}
+
 export function Confetti() {
   const ref = useRef(null);
   useEffect(() => {

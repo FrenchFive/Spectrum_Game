@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Target, Users, Wifi, ArrowRight, ArrowLeft } from "lucide-react";
-import { btn } from "./constants";
+import { Target, Users, Wifi, ArrowRight, ArrowLeft, Lightbulb, Github } from "lucide-react";
+import { btn, suggestUrl } from "./constants";
+import { ThemeBar } from "./ui";
 import { useParty } from "./useParty";
 import LocalGame from "./LocalGame";
 import OnlineGame from "./OnlineGame";
@@ -66,8 +67,14 @@ export default function App() {
               </div>
               <ArrowRight size={18} color="#6b7686" />
             </button>
+            <button onClick={() => setMode("suggest")} className="w-full flex items-center justify-center gap-2 py-2 text-sm" style={{ color: "#8a94a6" }}>
+              <Lightbulb size={15} color="#facc15" /> Suggest a Left/Right spectrum
+            </button>
           </div>
         )}
+
+        {/* SUGGEST A SPECTRUM */}
+        {mode === "suggest" && <SuggestSpectrum onBack={() => setMode("home")} />}
 
         {/* LOCAL */}
         {mode === "local" && <LocalGame onExit={() => setMode("home")} />}
@@ -101,6 +108,49 @@ export default function App() {
         {/* ONLINE GAME */}
         {mode === "online" && <OnlineGame party={party} onExit={leaveOnline} />}
       </div>
+    </div>
+  );
+}
+
+function SuggestSpectrum({ onBack }) {
+  const [left, setLeft] = useState("");
+  const [right, setRight] = useState("");
+  const [sent, setSent] = useState(false);
+  const ready = left.trim() && right.trim();
+  const submit = () => {
+    if (!ready) return;
+    window.open(suggestUrl(left.trim(), right.trim()), "_blank", "noopener");
+    setSent(true);
+  };
+  const field = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e7ecf3", fontSize: 15 };
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm" style={{ color: "#8a94a6" }}><ArrowLeft size={15} /> Back</button>
+      <div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 22 }}>Suggest a spectrum</div>
+        <p className="text-sm mt-1" style={{ color: "#9aa4b4", lineHeight: 1.5 }}>
+          Two opposing poles for a new round. Submitting opens a pull request on GitHub automatically — a maintainer just reviews and merges it into the deck.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label className="text-[11px] tracking-[0.18em] uppercase" style={{ color: "#7dd3fc" }}>Left pole</label>
+        <input value={left} maxLength={40} onChange={(e) => setLeft(e.target.value)} placeholder="e.g. White lie"
+          className="w-full px-4 py-3 rounded-xl outline-none" style={field} />
+        <label className="text-[11px] tracking-[0.18em] uppercase block pt-1" style={{ color: "#fdba74" }}>Right pole</label>
+        <input value={right} maxLength={40} onChange={(e) => setRight(e.target.value)} placeholder="e.g. Unforgivable lie"
+          className="w-full px-4 py-3 rounded-xl outline-none" style={field} />
+      </div>
+      {ready && <ThemeBar theme={[left.trim(), right.trim()]} />}
+      <button onClick={submit} disabled={!ready}
+        className={`${btn} w-full py-4 flex items-center justify-center gap-2`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontWeight: 700, fontSize: 16 }}>
+        <Github size={18} /> Open suggestion on GitHub
+      </button>
+      {sent && (
+        <p className="text-center text-[13px]" style={{ color: "#86efac" }}>
+          A GitHub tab opened — submit the issue there and a pull request is created automatically. Thanks for contributing!
+        </p>
+      )}
+      <p className="text-center text-[12px]" style={{ color: "#5b6675" }}>Opens GitHub in a new tab · no account data leaves this app.</p>
     </div>
   );
 }

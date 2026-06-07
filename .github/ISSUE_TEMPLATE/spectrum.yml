@@ -1,0 +1,25 @@
+name: 🎯 Suggest a spectrum
+description: Propose a new Left ↔ Right spectrum pair for the game deck
+title: "[Spectrum] suggestion"
+labels: ["spectrum-suggestion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest two opposing poles for a new spectrum (e.g. **White lie ↔ Unforgivable lie**).
+        Once submitted, a pull request that adds it to the deck is opened automatically — a
+        maintainer just has to review and merge it.
+  - type: input
+    id: left
+    attributes:
+      label: Left pole
+      placeholder: e.g. White lie
+    validations:
+      required: true
+  - type: input
+    id: right
+    attributes:
+      label: Right pole
+      placeholder: e.g. Unforgivable lie
+    validations:
+      required: true

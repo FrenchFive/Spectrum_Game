@@ -17,3 +17,6 @@ body { margin: 0; background: #0b0e13; }
 .spinpop { animation: spinpop .35s ease-out; }
 @keyframes fadeup { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 .fadeup { animation: fadeup .4s ease-out both; }
+@keyframes clueblink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.clueblink { animation: clueblink 1s step-end infinite; }
+@keyframes thinkdot { 0%, 100% { transform: translateY(0); opacity: .3; } 50% { transform: translateY(-7px); opacity: 1; } }

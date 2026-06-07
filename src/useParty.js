@@ -12,7 +12,7 @@ const RELAY_URLS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
   "wss://relay.nostr.band",
-  "wss://relay.snort.social",
+  "wss://relay.primal.net",
   "wss://nostr.mom",
 ];
 const ROOM_CONFIG = { appId: APP_ID, relayUrls: RELAY_URLS, relayRedundancy: 4 };
