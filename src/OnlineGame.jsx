@@ -205,39 +205,71 @@ export default function OnlineGame({ party, onExit }) {
 
   // ---------------- GUESSING ----------------
   if (room.status === "guessing") {
+    const idxOf = (pid) => players.findIndex((p) => p.pid === pid);
+    const liveMarkers = Object.entries(party.liveNeedles || {}).map(([pid, a]) => ({ angle: a, color: PLAYER_COLORS[idxOf(pid) % PLAYER_COLORS.length] }));
+    const lockedSet = new Set(party.lockedPids || []);
     const clueCard = (
       <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
         <div className="text-[10px] tracking-[0.2em] uppercase" style={{ color: "#6b7686" }}>{master?.name}'s clue</div>
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 22, marginTop: 2 }}>“{room.clue}”</div>
       </div>
     );
+    const Legend = ({ showLock }) => (
+      <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
+        {players.filter((p) => p.pid !== room.masterId && p.connected).map((p) => (
+          <span key={p.pid} className="flex items-center gap-1.5 text-[12px]" style={{ color: "#9aa4b4" }}>
+            <span style={{ width: 8, height: 8, borderRadius: 8, background: PLAYER_COLORS[idxOf(p.pid) % PLAYER_COLORS.length] }} />
+            {p.name}{p.pid === myPid ? " (you)" : ""}
+            {showLock && lockedSet.has(p.pid) && <Lock size={11} color="#4ade80" />}
+          </span>
+        ))}
+      </div>
+    );
 
     if (amMaster) {
+      const allLocked = guesserCount === 0 || localLocked >= guesserCount;
       return (
         <div className="space-y-4">
           {Header}{clueCard}
-          <div className="rounded-2xl px-4 py-8 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ fontFamily: "'Space Mono',monospace", fontSize: 40, color: "#67e8f9" }}>{localLocked}/{guesserCount}</div>
-            <div className="text-sm mt-1" style={{ color: "#8a94a6" }}>guessers locked in</div>
-          </div>
-          <HoldButton onComplete={party.revealNow} />
-          <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>hold to reveal when you're ready</p>
+          <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} markers={liveMarkers} onChange={undefined} />
+          <Legend showLock />
+          <p className="text-center text-sm" style={{ color: "#8a94a6" }}>
+            Watching guesses land — <b style={{ color: "#67e8f9", fontFamily: "'Space Mono',monospace" }}>{localLocked}/{guesserCount}</b> locked in.
+          </p>
+          {allLocked ? (
+            <>
+              <HoldButton onComplete={party.revealNow} />
+              <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>everyone's in — hold to reveal</p>
+            </>
+          ) : (
+            <>
+              <div className="w-full py-4 rounded-xl flex items-center justify-center gap-2 font-bold" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#5b6675", fontSize: 16 }}>
+                <Lock size={17} /> Waiting for all guesses…
+              </div>
+              <p className="text-center text-[12px] -mt-1" style={{ color: "#5b6675" }}>reveal unlocks once everyone has locked in</p>
+            </>
+          )}
         </div>
       );
     }
-    // guesser
+    // guesser who has locked → shared "master-style" view: everyone's live needles, no bands
     if (locked) {
       return (
         <div className="space-y-4">
           {Header}{clueCard}
-          <Waiting title="Locked in!" sub={`Waiting for reveal · ${room.lockedCount}/${guesserCount} locked`} />
+          <DialBoard theme={room.theme} value={needle} target={null} markers={liveMarkers} onChange={undefined} />
+          <Legend />
+          <p className="text-center text-sm" style={{ color: "#86efac" }}>
+            Locked in! Watch the others move — waiting for reveal · {room.lockedCount}/{guesserCount}
+          </p>
         </div>
       );
     }
+    // guesser still choosing → only their own needle (can't see others yet)
     return (
       <div className="space-y-4">
         {Header}{clueCard}
-        <DialBoard theme={room.theme} value={needle} onChange={locking ? undefined : setNeedle} forceNeedle={locking} pulseAt={locking ? needle : null} markers={[]} />
+        <DialBoard theme={room.theme} value={needle} onChange={locking ? undefined : (a) => { setNeedle(a); party.pushLive(a); }} forceNeedle={locking} pulseAt={locking ? needle : null} markers={[]} />
         <p className="text-center text-sm" style={{ color: "#8a94a6" }}>Drag the needle to where you think the target is, then lock it in.</p>
         <button onClick={doLock} disabled={locking}
           className={`${btn} w-full py-4 flex items-center justify-center gap-2 ${locking ? "lockpop" : ""}`}

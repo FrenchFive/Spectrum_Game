@@ -56,6 +56,7 @@ export function useParty() {
   const [status, setStatus] = useState("idle"); // idle | connecting | connected
   const [error, setError] = useState(null);
   const [secretTarget, setSecretTarget] = useState(null); // master-only, drives the spin render
+  const [liveNeedles, setLiveNeedles] = useState({});      // pid -> angle, shown to master + locked guessers
 
   const myPid = useRef(persistentPid()).current;
   const roomRef = useRef(null);          // host's authoritative copy
@@ -64,6 +65,10 @@ export function useParty() {
   const deckRef = useRef({ deck: [], ptr: 0 });
   const targetRef = useRef({ round: -1, value: null }); // master-only secret
   const guessRef = useRef({ round: -1, byPid: {} });     // master-only collected guesses
+  const liveRef = useRef({ round: -1, map: {} });        // master-only live needle map
+  const amMasterRef = useRef(false);                     // mirror of amMaster for stable handlers
+  const broadcastMapRef = useRef(null);                  // master's live-map broadcaster
+  const lastLiveSent = useRef(0);                        // throttle outgoing live updates
   const helloRef = useRef({ name: "" });
 
   // ---- host: draw a fresh theme without repeats ----
@@ -135,6 +140,8 @@ export function useParty() {
       case "reveal": {
         if (r.status !== "guessing" && r.status !== "clue") return;
         const results = Array.isArray(payload.results) ? payload.results : [];
+        const needed = Math.max(0, connectedPlayers(r).length - 1);
+        if (results.length < needed) return; // every connected guesser must have locked
         results.forEach((res) => {
           const p = r.players.find((x) => x.pid === res.pid);
           if (p && p.pid !== r.masterId) p.score += res.pts | 0;
@@ -181,7 +188,22 @@ export function useParty() {
     const [sendRoom, getRoom] = r.makeAction("room");
     const [sendAct, getAct] = r.makeAction("act");
     const [sendGuess, getGuess] = r.makeAction("guess");
-    apiRef.current = { sendRoom, sendAct, sendGuess, leave: () => r.leave() };
+    const [sendLive, getLive] = r.makeAction("live");      // guesser -> master: live needle
+    const [sendMap, getMap] = r.makeAction("livemap");      // master -> locked guessers: all needles
+    apiRef.current = { sendRoom, sendAct, sendGuess, sendLive, sendMap, leave: () => r.leave() };
+
+    // master forwards the aggregate live-needle map ONLY to players who have locked
+    // (still-choosing guessers must never see others' needles)
+    const broadcastLiveMap = () => {
+      const rr = roomRef.current; if (!rr || !apiRef.current) return;
+      const map = liveRef.current.map;
+      Object.keys(guessRef.current.byPid || {}).forEach((pid) => {
+        const peer = rr.players.find((p) => p.pid === pid)?.peerId;
+        if (peer) { try { apiRef.current.sendMap({ map }, peer); } catch (e) {} }
+      });
+      setLiveNeedles({ ...map }); // master renders locally
+    };
+    broadcastMapRef.current = broadcastLiveMap;
 
     if (asHost) {
       roomRef.current = {
@@ -197,15 +219,29 @@ export function useParty() {
     getRoom((data) => { roomRef.current = isHostRef.current ? roomRef.current : data; setRoom(data); });
     // host handles actions from peers
     getAct((data, peer) => { if (isHostRef.current) applyAct(peer, data); });
+    const ensureLiveRound = () => {
+      if (liveRef.current.round !== curRoundRef.current) liveRef.current = { round: curRoundRef.current, map: {} };
+    };
     // master collects guesses sent directly to it
     getGuess((data) => {
-      const r2 = roomRef.current;
       if (!data || typeof data.angle !== "number") return;
       if (guessRef.current.round !== curRoundRef.current) guessRef.current = { round: curRoundRef.current, byPid: {} };
-      guessRef.current.byPid[data.pid] = Math.max(0, Math.min(180, data.angle));
+      const a = Math.max(0, Math.min(180, data.angle));
+      guessRef.current.byPid[data.pid] = a;
+      ensureLiveRound(); liveRef.current.map[data.pid] = a; // freeze their needle at the locked spot
       const locked = Object.keys(guessRef.current.byPid).length;
       dispatch("prog", { locked });
+      broadcastLiveMap();
     });
+    // master receives a still-choosing guesser's live needle position
+    getLive((data) => {
+      if (!amMasterRef.current || !data || typeof data.angle !== "number") return;
+      ensureLiveRound();
+      liveRef.current.map[data.pid] = Math.max(0, Math.min(180, data.angle));
+      broadcastLiveMap();
+    });
+    // locked guessers receive the aggregate map and render everyone's needles
+    getMap((data) => { if (data && data.map) setLiveNeedles(data.map); });
 
     r.onPeerJoin(() => { sayHello(); });
     r.onPeerLeave((peer) => {
@@ -236,8 +272,16 @@ export function useParty() {
 
   // ---- master-only secret target lifecycle ----
   const amMaster = room && room.masterId === myPid;
+  useEffect(() => { amMasterRef.current = !!amMaster; }, [amMaster]);
   // clear the secret whenever the round turns over (or we're no longer master)
   useEffect(() => { setSecretTarget(null); }, [room?.round, amMaster]);
+  // live needles only exist during guessing — clear them otherwise / per round
+  useEffect(() => {
+    if (!room || room.status !== "guessing") {
+      setLiveNeedles({});
+      liveRef.current = { round: -1, map: {} };
+    }
+  }, [room?.status, room?.round]);
   // generate the secret when this device becomes master and the spin begins.
   // Stored in BOTH a ref (for revealNow scoring) and state (so the spin re-renders).
   useEffect(() => {
@@ -282,6 +326,17 @@ export function useParty() {
     // if master happens to be host, the guess still routes via peer id above
   }, [room, myPid]);
 
+  // guesser: stream my live needle to the master while still choosing (throttled).
+  // The master is the only recipient; it relays to locked players only.
+  const pushLive = useCallback((angle) => {
+    const r = roomRef.current || room; if (!r || r.masterId === myPid) return;
+    const now = Date.now();
+    if (now - lastLiveSent.current < 55) return;
+    lastLiveSent.current = now;
+    const mp = r.players.find((p) => p.pid === r.masterId)?.peerId;
+    if (apiRef.current && mp) { try { apiRef.current.sendLive({ pid: myPid, angle }, mp); } catch (e) {} }
+  }, [room, myPid]);
+
   // master: compute scores from collected guesses + secret target, then reveal
   const revealNow = useCallback(() => {
     const r = roomRef.current || room; if (!r) return;
@@ -298,10 +353,12 @@ export function useParty() {
     isHost: room ? room.hostPid === myPid : false,
     amMaster: !!amMaster,
     secretTarget: amMaster ? secretTarget : null,
+    liveNeedles,
+    lockedPids: guessRef.current.byPid ? Object.keys(guessRef.current.byPid) : [],
     localLocked: guessRef.current.byPid ? Object.keys(guessRef.current.byPid).length : 0,
     savedName,
     create, createWithCode, join, leave,
-    startGame, voteSkip, votePlay, finishSpin, submitClue, submitGuess,
+    startGame, voteSkip, votePlay, finishSpin, submitClue, submitGuess, pushLive,
     revealNow, nextRound, endGame, playAgain, reassignMaster,
   };
 }

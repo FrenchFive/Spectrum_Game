@@ -95,6 +95,11 @@ try {
   await host.fill("input[placeholder='Type a word or phrase…']", "sunshine");
   await host.click("text=Lock clue");
 
+  // reveal gate: before the guesser locks, the master must NOT be able to reveal
+  await host.waitForSelector("text=Waiting for all guesses", { timeout: 12000 });
+  if (await host.locator("text=Hold to reveal").count()) throw new Error("GATE FAIL: reveal available before all locked");
+  log("✓ online: reveal correctly gated until all guessers lock");
+
   // guest guesses (needle defaults to 90) and locks in
   await guest.waitForSelector("text=Lock in guess", { timeout: 12000 });
   await guest.click("text=Lock in guess");
