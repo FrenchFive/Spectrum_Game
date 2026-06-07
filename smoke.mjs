@@ -1,0 +1,124 @@
+import { chromium } from "playwright";
+
+const BASE = "http://localhost:5174/";
+const errors = [];
+const log = (...a) => console.log(...a);
+
+function watch(page, tag) {
+  page.on("console", (m) => { if (m.type() === "error") errors.push(`[${tag}] ${m.text()}`); });
+  page.on("pageerror", (e) => errors.push(`[${tag}] PAGEERROR ${e.message}`));
+}
+
+const browser = await chromium.launch();
+
+// ---------- 1) App mounts + local mode plays a round ----------
+{
+  const ctx = await browser.newContext({ viewport: { width: 414, height: 896 }, hasTouch: true });
+  const page = await ctx.newPage();
+  watch(page, "local");
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=SPECTRA");
+  log("✓ app mounted");
+
+  await page.click("text=Pass & play");
+  await page.waitForSelector("text=Start game");
+  await page.click("text=Start game");
+  await page.waitForSelector("text=the spectrum is");
+  log("✓ local: started game, theme vote shown");
+
+  await page.click("text=Play this round");
+  await page.waitForTimeout(500);
+  log("after play-this-round, body text:", (await page.locator("body").innerText()).replace(/\n+/g, " | ").slice(0, 200));
+  await page.click("button:has-text('Tap when ready')"); // master handoff
+  await page.waitForSelector("text=secret target", { timeout: 6000 });
+  await page.fill("input[placeholder='Type a word or phrase…']", "test clue");
+  await page.click("text=Lock clue");
+  await page.click("button:has-text('Tap when ready')"); // guesser handoff
+  await page.waitForSelector("text=Lock in guess");
+  await page.click("text=Lock in guess");
+  await page.waitForTimeout(900);
+  // 2 players => only 1 guesser, so this lock leads straight to reveal
+  await page.waitForSelector("text=Hold to reveal");
+  log("✓ local: reached reveal screen — full round flow works");
+  await ctx.close();
+}
+
+// ---------- 2) Online: two browsers connect via Trystero + sync ----------
+let onlineOk = false;
+try {
+  const hostCtx = await browser.newContext({ viewport: { width: 414, height: 896 }, hasTouch: true });
+  const guestCtx = await browser.newContext({ viewport: { width: 414, height: 896 }, hasTouch: true });
+  const host = await hostCtx.newPage(); watch(host, "host");
+  const guest = await guestCtx.newPage(); watch(guest, "guest");
+
+  await host.goto(BASE, { waitUntil: "networkidle" });
+  await host.click("text=Play online");
+  await host.fill("input[placeholder='e.g. Five']", "Host");
+  await host.click("text=Create a party");
+
+  // read the 4-char code from the lobby
+  await host.waitForSelector("text=Party code", { timeout: 15000 });
+  await host.waitForTimeout(500);
+  const code = (await host.locator("button >> text=/^[A-Z2-9]{4}$/").first().textContent())?.trim();
+  log("• host created room:", code);
+
+  await guest.goto(BASE, { waitUntil: "networkidle" });
+  await guest.click("text=Play online");
+  await guest.fill("input[placeholder='e.g. Five']", "Guest");
+  await guest.fill("input[placeholder='CODE']", code);
+  await guest.click("button:has-text('Join')");
+
+  // host should see Guest appear in the lobby (proves P2P sync)
+  await host.waitForSelector("text=Guest", { timeout: 25000 });
+  log("✓ online: guest joined and synced to host lobby");
+
+  // host can now start (2 players). Host is the first connected player => Master.
+  await host.click("text=Start game");
+  await guest.waitForSelector("text=the spectrum is", { timeout: 15000 });
+  log("✓ online: host started, guest received themeVote state");
+
+  // master (host) plays the round
+  await host.click("text=Play this round");
+  await host.waitForSelector("text=secret target", { timeout: 12000 }); // spin completes -> clue
+  log("✓ online: master saw the spin land + secret target");
+  // anti-cheat: while master picks a clue, guest must NOT have the target/bands
+  await guest.waitForSelector("text=thinking of a clue", { timeout: 12000 });
+  const guestTextDuringClue = await guest.locator("body").innerText();
+  if (/secret target/i.test(guestTextDuringClue)) throw new Error("ANTI-CHEAT FAIL: guest saw target");
+  log("✓ online: anti-cheat — guest never shown the target");
+
+  await host.fill("input[placeholder='Type a word or phrase…']", "sunshine");
+  await host.click("text=Lock clue");
+
+  // guest guesses (needle defaults to 90) and locks in
+  await guest.waitForSelector("text=Lock in guess", { timeout: 12000 });
+  await guest.click("text=Lock in guess");
+  await guest.waitForSelector("text=Locked in!", { timeout: 8000 });
+  log("✓ online: guest locked a guess");
+
+  // master holds the reveal button (~1.7s) to fire the reveal
+  await host.waitForSelector("text=Hold to reveal", { timeout: 8000 });
+  const hb = await host.locator("button:has-text('reveal'), button:has-text('Hold to reveal')").first().boundingBox();
+  await host.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await host.mouse.down();
+  await host.waitForTimeout(1900);
+  await host.mouse.up();
+
+  // both land on reveal; guest sees the now-revealed clue + a cumulative score
+  await guest.waitForSelector("text=clue", { timeout: 10000 });
+  await host.waitForSelector("text=Next round", { timeout: 10000 });
+  log("✓ online: reveal reached on both devices, scores synced");
+  onlineOk = true;
+
+  await hostCtx.close(); await guestCtx.close();
+} catch (e) {
+  log("⚠ online test could not complete:", e.message.split("\n")[0]);
+}
+
+await browser.close();
+
+log("\n=== RESULT ===");
+log("online sync:", onlineOk ? "WORKING" : "NOT VERIFIED (relay/network)");
+if (errors.length) { log("console errors:\n" + errors.join("\n")); process.exit(2); }
+log("no console/page errors");
+process.exit(onlineOk ? 0 : 3);

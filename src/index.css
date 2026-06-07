@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: #0b0e13; }
+::placeholder { color: #5b6675; }
+
+@keyframes lockpulse { 0% { r: 6px; opacity: .9; } 100% { r: 50px; opacity: 0; } }
+@keyframes lockpulse2 { 0% { r: 6px; opacity: .8; } 100% { r: 38px; opacity: 0; } }
+.lockpulse { animation: lockpulse .6s ease-out forwards; }
+.lockpulse2 { animation: lockpulse2 .6s ease-out .07s forwards; }
+@keyframes lockpop { 0% { transform: scale(1); } 28% { transform: scale(.95); } 60% { transform: scale(1.05); } 100% { transform: scale(1); } }
+.lockpop { animation: lockpop .5s ease-out; }
+@keyframes spinpop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.spinpop { animation: spinpop .35s ease-out; }
