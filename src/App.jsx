@@ -228,8 +228,23 @@ export default function App() {
         {/* LOCAL */}
         {mode === "local" && <LocalGame onExit={() => setMode("home")} />}
 
+        {/* CONNECTING — joiner waits here for the host's first snapshot over WebRTC,
+            instead of flipping to a blank online screen during the handshake */}
+        {mode === "onlineEntry" && party.status === "connecting" && (
+          <div className="space-y-6">
+            <div className="rounded-2xl flex flex-col items-center justify-center text-center" style={{ minHeight: 280, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", padding: 28 }}>
+              <div className="flex gap-1.5 mb-5">
+                {[0, 1, 2].map((i) => <span key={i} className="rounded-full animate-pulse" style={{ width: 9, height: 9, background: "#4ade80", animationDelay: `${i * 0.18}s` }} />)}
+              </div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 21 }}>Connecting to host…</div>
+              <div className="mt-2 text-sm" style={{ color: "#8a94a6", lineHeight: 1.5 }}>Opening a direct line to the party. This can take a few seconds on mobile networks.</div>
+            </div>
+            <button onClick={() => party.leave()} className="w-full text-center text-sm py-2" style={{ color: "#8a94a6" }}>Cancel</button>
+          </div>
+        )}
+
         {/* ONLINE ENTRY */}
-        {mode === "onlineEntry" && (
+        {mode === "onlineEntry" && party.status !== "connecting" && (
           <div className="space-y-5">
             <button onClick={() => { setMode("home"); }} className="flex items-center gap-1.5 text-sm" style={{ color: "#8a94a6" }}><ArrowLeft size={15} /> Back</button>
             <div>

@@ -81,6 +81,7 @@ export function useParty() {
   const lastLiveSent = useRef(0);                        // throttle outgoing live updates
   const lastChargeSent = useRef(0);                      // throttle outgoing reveal charge
   const helloRef = useRef({ name: "" });
+  const joinTimerRef = useRef(null);                     // joiner: fails the connect if no room snapshot arrives
 
   // ---- host: draw a fresh theme without repeats ----
   const drawTheme = useCallback(() => {
@@ -242,8 +243,17 @@ export function useParty() {
       setRoom({ ...roomRef.current });
     }
 
-    // everyone listens for room snapshots from the host
-    getRoom((data) => { roomRef.current = isHostRef.current ? roomRef.current : data; setRoom(data); });
+    // everyone listens for room snapshots from the host. The FIRST snapshot a
+    // joiner receives is proof the P2P data channel is live — only now do we flip
+    // to "connected" (and drop the connecting screen / cancel the failure timer).
+    getRoom((data) => {
+      roomRef.current = isHostRef.current ? roomRef.current : data;
+      setRoom(data);
+      if (!isHostRef.current && joinTimerRef.current) {
+        clearTimeout(joinTimerRef.current); joinTimerRef.current = null;
+        setStatus("connected");
+      }
+    });
     // host handles actions from peers
     getAct((data, peer) => { if (isHostRef.current) applyAct(peer, data); });
     const ensureLiveRound = () => {
@@ -280,13 +290,30 @@ export function useParty() {
       if (p) { p.connected = false; broadcast(); }
     });
 
-    setStatus("connected");
+    // The host's room is ready instantly. A joiner stays "connecting" until the
+    // host's first snapshot lands over WebRTC (see getRoom) — that's what keeps
+    // the joiner on a "Connecting…" screen instead of a blank page during the
+    // multi-second cross-network handshake. If it never lands, fail loudly.
+    if (asHost) {
+      setStatus("connected");
+    } else {
+      joinTimerRef.current = setTimeout(() => {
+        joinTimerRef.current = null;
+        if (!roomRef.current) {
+          try { r.leave(); } catch (e) {}
+          apiRef.current = null;
+          setError("Couldn't reach the host. Double-check the code, make sure they're still in the lobby, and try again.");
+          setStatus("idle");
+        }
+      }, 25000);
+    }
     // announce ourselves to the host (covers host connecting slightly later)
     const sayHello = () => { try { sendAct({ type: "hello", payload: { pid: myPid, name: helloRef.current.name } }); } catch (e) {} };
     helloRef.current.say = sayHello;
     sayHello();
     setTimeout(sayHello, 600);
     setTimeout(sayHello, 1500);
+    setTimeout(sayHello, 3500);
   }, [applyAct, broadcast, myPid]);
 
   // dispatch: host applies locally, others send to host
@@ -330,6 +357,7 @@ export function useParty() {
   const join = useCallback((code, name) => { connect(code.toUpperCase().trim(), (name || "Player").trim().slice(0, 16), false); }, [connect]);
 
   const leave = useCallback(() => {
+    if (joinTimerRef.current) { clearTimeout(joinTimerRef.current); joinTimerRef.current = null; }
     try { apiRef.current && apiRef.current.leave(); } catch (e) {}
     apiRef.current = null; roomRef.current = null; isHostRef.current = false;
     targetRef.current = { round: -1, value: null }; guessRef.current = { round: -1, byPid: {} };
