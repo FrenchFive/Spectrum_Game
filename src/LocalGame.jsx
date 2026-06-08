@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { EyeOff, Eye, SkipForward, Lock, ArrowRight, Crown, RotateCcw, Flag, ArrowLeft } from "lucide-react";
-import { THEMES, PLAYER_COLORS, btn, shuffle, newTarget, scoreFor } from "./constants";
+import { THEMES, PLAYER_COLORS, btn, shuffle, newTarget, scoreFor, DEFAULT_DIFFICULTY } from "./constants";
 import { DialBoard } from "./Dial";
-import { HoldButton, Confetti, PlayerEditor, useRevealStage } from "./ui";
+import { HoldButton, Confetti, PlayerEditor, DifficultyPicker, DifficultyBadge, CheatBadge, ToggleRow, useRevealStage } from "./ui";
 
 export default function LocalGame({ onExit }) {
   const [phase, setPhase] = useState("setup");
   const [players, setPlayers] = useState([{ name: "Player 1", score: 0 }, { name: "Player 2", score: 0 }]);
   const [round, setRound] = useState(1);
   const [masterIdx, setMasterIdx] = useState(0);
+  const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY);
+  const [cheat, setCheat] = useState(false);
 
   const [deck, setDeck] = useState([]);
   const [deckPtr, setDeckPtr] = useState(0);
@@ -55,7 +57,7 @@ export default function LocalGame({ onExit }) {
 
   const lockGuess = () => {
     const idx = guessOrder[guessPtr];
-    const pts = scoreFor(needle, target);
+    const pts = scoreFor(needle, target, difficulty);
     const next = [...results, { idx, guess: needle, pts }];
     setResults(next);
     if (guessPtr + 1 < guessOrder.length) { setGuessPtr(guessPtr + 1); setNeedle(90); setPhase("guessHandoff"); }
@@ -112,6 +114,8 @@ export default function LocalGame({ onExit }) {
         <div className="space-y-5">
           <button onClick={onExit} className="flex items-center gap-1.5 text-sm" style={{ color: "#8a94a6" }}><ArrowLeft size={15} /> Back</button>
           <PlayerEditor players={players} setPlayers={setPlayers} min={2} />
+          <DifficultyPicker value={difficulty} onChange={setDifficulty} />
+          <ToggleRow label="Cheat mode" hint="Let the Master drag the target instead of the random spin" checked={cheat} onChange={setCheat} accent="#facc15" />
           <button onClick={startGame} disabled={players.filter((p) => p.name.trim()).length < 2}
             className={`${btn} w-full py-4 flex items-center justify-center gap-2`} style={{ background: "linear-gradient(135deg,#4ade80,#22d3ee)", color: "#06140f", fontSize: 16, fontWeight: 700 }}>
             Start game <ArrowRight size={18} />
@@ -121,7 +125,10 @@ export default function LocalGame({ onExit }) {
 
       {phase === "themeVote" && (
         <div className="space-y-5">
-          <div className="text-center text-[11px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>Round {round} · the spectrum is</div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "#6b7686" }}>Round {round} · the spectrum is</span>
+            <DifficultyBadge difficulty={difficulty} />
+          </div>
           <div className="rounded-2xl px-4 py-9 flex items-center justify-between gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <span className="flex-1 text-center px-3 py-3 rounded-lg font-bold text-[15px] uppercase tracking-[0.06em] leading-tight" style={{ color: "#7dd3fc", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.3)", fontFamily: "'Space Mono', monospace" }}>{theme[0]}</span>
             <span className="text-zinc-600 text-sm shrink-0">↔</span>
@@ -159,13 +166,16 @@ export default function LocalGame({ onExit }) {
 
       {phase === "master" && (
         <div className="space-y-4">
+          <div className="flex justify-center gap-2"><DifficultyBadge difficulty={difficulty} />{cheat && <CheatBadge />}</div>
           <DialBoard theme={theme} value={spinning ? spinAngle : target} target={spinning ? null : target}
-            showNumbers={!spinning} forceNeedle={spinning} onChange={undefined} markers={[]} />
+            showNumbers={!spinning} forceNeedle={spinning} onChange={!spinning && cheat ? setTarget : undefined} markers={[]} difficulty={difficulty} />
           {spinning ? (
             <p className="text-center text-sm animate-pulse" style={{ color: "#67e8f9" }}>Spinning up a random angle…</p>
           ) : (
             <>
-              <p className="text-center text-sm" style={{ color: "#86efac" }}>This is the secret target. Give a clue that lands the guessers on the bullseye.</p>
+              <p className="text-center text-sm" style={{ color: "#86efac" }}>
+                {cheat ? "Cheat mode — drag the bullseye anywhere, then give a clue that lands the guessers on it." : "This is the secret target. Give a clue that lands the guessers on the bullseye."}
+              </p>
               <textarea value={clue} maxLength={140} rows={2} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
                 className="w-full px-4 py-3 rounded-xl outline-none text-center resize-none"
                 style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600, lineHeight: 1.35 }} />
@@ -180,6 +190,7 @@ export default function LocalGame({ onExit }) {
 
       {phase === "guess" && (
         <div className="space-y-4">
+          <div className="flex justify-center"><DifficultyBadge difficulty={difficulty} /></div>
           <div className="rounded-xl px-4 py-3 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div className="text-[10px] tracking-[0.2em] uppercase" style={{ color: "#6b7686" }}>{master.name}'s clue</div>
             <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 22, marginTop: 2 }}>“{clue}”</div>
@@ -198,11 +209,12 @@ export default function LocalGame({ onExit }) {
 
       {phase === "reveal" && (
         <div className="space-y-4">
+          <div className="flex justify-center"><DifficultyBadge difficulty={difficulty} /></div>
           <div className="rounded-xl px-4 py-2.5 text-center" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#6b7686" }}>clue </span>
             <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17 }}>“{clue}”</span>
           </div>
-          <DialBoard theme={theme} value={target} target={revealed ? target : null} showNumbers={revealed} revealStage={stage}
+          <DialBoard theme={theme} value={target} target={revealed ? target : null} showNumbers={revealed} revealStage={stage} difficulty={difficulty}
             markers={revealed ? results.map((r) => ({ angle: r.guess, color: PLAYER_COLORS[r.idx % PLAYER_COLORS.length] })) : []} onChange={undefined} />
           {!revealed ? (
             <>

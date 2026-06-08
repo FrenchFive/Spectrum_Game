@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Eye, Lock, ArrowRight, Crown, RotateCcw, SkipForward, Flag, ArrowLeft, Copy, Check, Share2, Users, Wifi, WifiOff } from "lucide-react";
 import { PLAYER_COLORS, btn } from "./constants";
 import { DialBoard } from "./Dial";
-import { HoldButton, Confetti, RevealMeter, useRevealStage, ClueThinking, ThemeBar } from "./ui";
+import { HoldButton, Confetti, RevealMeter, DifficultyPicker, DifficultyBadge, CheatBadge, ToggleRow, useRevealStage, ClueThinking, ThemeBar } from "./ui";
 
 // master-only: spin the needle ~3 loops, decelerate, land on the secret target
 function SpinDial({ theme, target, onDone }) {
@@ -90,6 +90,8 @@ export default function OnlineGame({ party, onExit }) {
       <div className="flex items-center gap-2 text-[12px]" style={{ color: "#8a94a6", fontFamily: "'Space Mono',monospace" }}>
         <span className="px-2 py-1 rounded-md" style={{ background: "rgba(34,211,238,0.12)", color: "#67e8f9", letterSpacing: "0.15em" }}>{room.code}</span>
         {room.status !== "lobby" && <span>RND {room.round}</span>}
+        {room.status !== "lobby" && <DifficultyBadge difficulty={room.difficulty} />}
+        {room.status !== "lobby" && room.cheat && <CheatBadge />}
       </div>
       <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "#6b7686" }}>
         <Users size={13} /> {connected.length}
@@ -137,6 +139,9 @@ export default function OnlineGame({ party, onExit }) {
             ))}
           </div>
         </div>
+
+        <DifficultyPicker value={room.difficulty || "standard"} onChange={isHost ? party.setDifficulty : undefined} disabled={!isHost} />
+        <ToggleRow label="Cheat mode" hint="Let the Master drag the target instead of the random spin" checked={!!room.cheat} onChange={isHost ? party.setCheat : undefined} disabled={!isHost} accent="#facc15" />
 
         {isHost ? (
           <button onClick={party.startGame} disabled={connected.length < 2}
@@ -244,7 +249,7 @@ export default function OnlineGame({ party, onExit }) {
       return (
         <div className="space-y-4">
           {Header}{clueCard}
-          <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} markers={liveMarkers} onChange={undefined} />
+          <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} markers={liveMarkers} onChange={undefined} difficulty={room.difficulty} />
           <Legend showLock />
           {allLocked ? (
             <>
@@ -311,7 +316,7 @@ export default function OnlineGame({ party, onExit }) {
           <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "#6b7686" }}>clue </span>
           <span style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 17 }}>“{room.clue}”</span>
         </div>
-        <DialBoard theme={room.theme} value={room.target ?? 90} target={room.target} showNumbers revealStage={revealStage}
+        <DialBoard theme={room.theme} value={room.target ?? 90} target={room.target} showNumbers revealStage={revealStage} difficulty={room.difficulty}
           markers={room.results.map((r) => ({ angle: r.guess, color: PLAYER_COLORS[idxOf(r.pid) % PLAYER_COLORS.length] }))} onChange={undefined} />
         {!showScores ? (
           <p className="text-center text-sm animate-pulse" style={{ color: "#67e8f9" }}>
@@ -401,10 +406,12 @@ function MasterClue({ party }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-1 text-[12px]" style={{ color: "#8a94a6", fontFamily: "'Space Mono',monospace" }}>
         <span className="px-2 py-1 rounded-md" style={{ background: "rgba(34,211,238,0.12)", color: "#67e8f9", letterSpacing: "0.15em" }}>{room.code}</span>
-        <span>RND {room.round}</span>
+        <span className="flex items-center gap-2"><span>RND {room.round}</span><DifficultyBadge difficulty={room.difficulty} />{room.cheat && <CheatBadge />}</span>
       </div>
-      <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} showNumbers onChange={undefined} markers={[]} />
-      <p className="text-center text-sm" style={{ color: "#86efac" }}>This is your secret target. Give a clue that lands the guessers on the bullseye.</p>
+      <DialBoard theme={room.theme} value={secretTarget ?? 90} target={secretTarget} showNumbers onChange={room.cheat ? party.setMasterTarget : undefined} markers={[]} difficulty={room.difficulty} />
+      <p className="text-center text-sm" style={{ color: "#86efac" }}>
+        {room.cheat ? "Cheat mode — drag the bullseye anywhere, then give a clue that lands the guessers on it." : "This is your secret target. Give a clue that lands the guessers on the bullseye."}
+      </p>
       <textarea value={clue} maxLength={140} rows={2} onChange={(e) => setClue(e.target.value)} placeholder="Type a word or phrase…"
         className="w-full px-4 py-3 rounded-xl outline-none text-center resize-none"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(74,222,128,0.3)", color: "#e7ecf3", fontSize: 17, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600, lineHeight: 1.35 }} />

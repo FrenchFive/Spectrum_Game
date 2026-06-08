@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // connects phones directly. No backend, no keys. To swap reliability strategy
 // just change this import to 'trystero/mqtt' or 'trystero/torrent' — same API.
 import { joinRoom, selfId } from "trystero/nostr";
-import { THEMES, shuffle, newTarget, scoreFor } from "./constants";
+import { THEMES, shuffle, newTarget, scoreFor, DEFAULT_DIFFICULTY, DIFFICULTIES } from "./constants";
 
 const APP_ID = "spectrum-lr-game-v1";
 // Curated, reliable public Nostr relays for signaling (avoids dead defaults).
@@ -101,6 +101,20 @@ export function useParty() {
           r.players.push({ pid: payload.pid, name: uniqueName(r, payload.name || "Player", payload.pid), score: 0, connected: true, peerId: from });
         } else return; // room full
         broadcast();
+        break;
+      }
+      case "setDiff": {
+        // host picks difficulty in the lobby; ignored once the game is underway
+        if (from !== r.hostPid && from !== "self") return;
+        if (r.status !== "lobby") return;
+        if (DIFFICULTIES.some((d) => d.id === payload.difficulty)) { r.difficulty = payload.difficulty; broadcast(); }
+        break;
+      }
+      case "setCheat": {
+        // host toggles cheat (Master places the target) in the lobby only
+        if (from !== r.hostPid && from !== "self") return;
+        if (r.status !== "lobby") return;
+        r.cheat = !!payload.cheat; broadcast();
         break;
       }
       case "start": {
@@ -212,7 +226,8 @@ export function useParty() {
       roomRef.current = {
         code, hostPid: myPid, status: "lobby",
         players: [{ pid: myPid, name, score: 0, connected: true, peerId: selfId }],
-        round: 1, masterId: myPid, theme: THEMES[0], clue: "", lockedCount: 0, results: [], target: null, version: 0,
+        round: 1, masterId: myPid, theme: THEMES[0], clue: "", lockedCount: 0, results: [], target: null,
+        difficulty: DEFAULT_DIFFICULTY, cheat: false, version: 0,
       };
       deckRef.current = { deck: shuffle(THEMES.map((_, i) => i)), ptr: 0 };
       setRoom({ ...roomRef.current });
@@ -313,6 +328,17 @@ export function useParty() {
   }, []);
 
   const startGame = useCallback(() => dispatch("start", {}), [dispatch]);
+  const setDifficulty = useCallback((difficulty) => dispatch("setDiff", { difficulty }), [dispatch]);
+  const setCheat = useCallback((cheat) => dispatch("setCheat", { cheat }), [dispatch]);
+
+  // cheat mode: master drags the secret target to a spot of their choosing.
+  // Updates the scoring ref (read by revealNow) + the render state (the dial).
+  const setMasterTarget = useCallback((angle) => {
+    if (!amMasterRef.current) return;
+    const a = Math.max(0, Math.min(180, angle));
+    targetRef.current = { round: curRoundRef.current, value: a };
+    setSecretTarget(a);
+  }, []);
   const voteSkip = useCallback(() => dispatch("voteSkip", {}), [dispatch]);
   const votePlay = useCallback(() => dispatch("votePlay", {}), [dispatch]);
   const finishSpin = useCallback(() => dispatch("spundone", {}), [dispatch]);
@@ -362,7 +388,8 @@ export function useParty() {
     const r = roomRef.current || room; if (!r) return;
     const tgt = targetRef.current.value;
     const guesses = guessRef.current.byPid || {};
-    const results = Object.entries(guesses).map(([pid, guess]) => ({ pid, guess, pts: scoreFor(guess, tgt) }));
+    const diff = r.difficulty || DEFAULT_DIFFICULTY;
+    const results = Object.entries(guesses).map(([pid, guess]) => ({ pid, guess, pts: scoreFor(guess, tgt, diff) }));
     dispatch("reveal", { target: tgt, results });
   }, [dispatch, room]);
 
@@ -378,7 +405,7 @@ export function useParty() {
     localLocked: guessRef.current.byPid ? Object.keys(guessRef.current.byPid).length : 0,
     savedName,
     create, createWithCode, join, leave,
-    startGame, voteSkip, votePlay, finishSpin, submitClue, submitGuess, pushLive, pushCharge,
+    startGame, setDifficulty, setCheat, setMasterTarget, voteSkip, votePlay, finishSpin, submitClue, submitGuess, pushLive, pushCharge,
     revealNow, nextRound, endGame, playAgain, reassignMaster,
   };
 }

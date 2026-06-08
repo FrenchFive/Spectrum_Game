@@ -1,6 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Eye, Plus, X } from "lucide-react";
-import { btn, PLAYER_COLORS } from "./constants";
+import { Eye, Plus, X, Target, Sparkles } from "lucide-react";
+import { btn, PLAYER_COLORS, DIFFICULTIES, difficultyMeta } from "./constants";
+
+// Compact, color-coded difficulty chip shown during a round so players know the stakes.
+export function DifficultyBadge({ difficulty }) {
+  const d = difficultyMeta(difficulty);
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-[0.12em]"
+      style={{ color: d.tone, background: `${d.tone}1f`, border: `1px solid ${d.tone}55`, fontFamily: "'Space Mono', monospace" }}>
+      <Target size={11} /> {d.label}
+    </span>
+  );
+}
 
 // Press-and-hold reveal button: fills, shakes harder as it charges, ramps haptics,
 // drains ~2.5x faster on early release, auto-fires + firm buzz at full charge.
@@ -193,6 +204,65 @@ export function Confetti() {
     return () => cancelAnimationFrame(raf);
   }, []);
   return <canvas ref={ref} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 50 }} />;
+}
+
+// Segmented Easy / Standard / Hard selector. `value` is a difficulty id, `onChange`
+// gets the new id. Pass `disabled` to render a read-only badge row (e.g. non-host players).
+export function DifficultyPicker({ value, onChange, disabled = false }) {
+  return (
+    <div>
+      <div className="text-[11px] tracking-[0.18em] uppercase mb-2" style={{ color: "#6b7686" }}>Difficulty</div>
+      <div className="grid grid-cols-3 gap-2">
+        {DIFFICULTIES.map((d) => {
+          const active = d.id === value;
+          return (
+            <button key={d.id} type="button" disabled={disabled || !onChange}
+              onClick={() => onChange && onChange(d.id)}
+              className={`${btn} py-2.5 flex flex-col items-center gap-0.5`}
+              style={{
+                background: active ? "linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,211,238,0.12))" : "rgba(255,255,255,0.04)",
+                border: active ? "1px solid rgba(74,222,128,0.55)" : "1px solid rgba(255,255,255,0.08)",
+                cursor: disabled ? "default" : "pointer",
+                opacity: disabled && !active ? 0.5 : 1,
+              }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: active ? "#e7ecf3" : "#cdd5e0" }}>{d.label}</span>
+              <span className="text-[11px]" style={{ color: active ? "#86efac" : "#6b7686", fontFamily: "'Space Mono', monospace" }}>{d.blurb}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Small chip flagging that Cheat mode is on (Master can place the target themselves).
+export function CheatBadge() {
+  const tone = "#facc15";
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold uppercase tracking-[0.12em]"
+      style={{ color: tone, background: `${tone}1f`, border: `1px solid ${tone}55`, fontFamily: "'Space Mono', monospace" }}>
+      <Sparkles size={11} /> Cheat
+    </span>
+  );
+}
+
+// Generic labelled on/off switch. `onChange` gets the next boolean. Pass `disabled`
+// for a read-only row (e.g. non-host players see the host's choice).
+export function ToggleRow({ label, hint, checked, onChange, disabled = false, accent = "#4ade80" }) {
+  const live = !disabled && !!onChange;
+  return (
+    <button type="button" disabled={!live} onClick={() => live && onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-left"
+      style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${checked ? accent + "66" : "rgba(255,255,255,0.08)"}`, cursor: live ? "pointer" : "default", opacity: disabled && !checked ? 0.6 : 1 }}>
+      <span className="min-w-0">
+        <span style={{ fontWeight: 700, fontSize: 14, color: "#e7ecf3" }}>{label}</span>
+        {hint && <span className="block text-[12px]" style={{ color: "#8a94a6", lineHeight: 1.35 }}>{hint}</span>}
+      </span>
+      <span className="relative shrink-0" style={{ width: 42, height: 24, borderRadius: 999, background: checked ? accent : "rgba(255,255,255,0.14)", transition: "background .15s" }}>
+        <span style={{ position: "absolute", top: 3, left: checked ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: "#fff", transition: "left .15s" }} />
+      </span>
+    </button>
+  );
 }
 
 export function PlayerEditor({ players, setPlayers, min = 2 }) {

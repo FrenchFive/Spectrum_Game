@@ -1,8 +1,8 @@
 import React, { useRef, useCallback, useEffect } from "react";
-import { VBW, VBH, cx, cy, B4, B3, B2, clampA, pt, domePath, sectorPath } from "./constants";
+import { VBW, VBH, cx, cy, bandsFor, DEFAULT_DIFFICULTY, clampA, pt, domePath, sectorPath } from "./constants";
 
 // ---------- DIAL ----------
-export function Dial({ value, onChange, target = null, markers = [], showNumbers = false, forceNeedle = false, pulseAt = null, revealStage = 3 }) {
+export function Dial({ value, onChange, target = null, markers = [], showNumbers = false, forceNeedle = false, pulseAt = null, revealStage = 3, difficulty = DEFAULT_DIFFICULTY }) {
   const svgRef = useRef(null);
   const dragging = useRef(false);
 
@@ -49,6 +49,8 @@ export function Dial({ value, onChange, target = null, markers = [], showNumbers
       <path d={domePath()} fill="url(#domeGrad)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.5" />
 
       {target !== null && (() => {
+        const { b4, b3, b2 } = bandsFor(difficulty);
+        const m3 = (b4 + b3) / 2, m2 = (b3 + b2) / 2; // label sits in the middle of each band
         const Num = ({ a, n }) => {
           const p = pt(clampA(a)); const f = 0.74;
           return <text x={cx + (p.x - cx) * f} y={cy + (p.y - cy) * f} fontSize="12" fontWeight="700"
@@ -59,17 +61,17 @@ export function Dial({ value, onChange, target = null, markers = [], showNumbers
           <g>
             {/* paint outer→inner so the bullseye sits on top; reveal order is 4 → 3 → 2 via opacity */}
             <g style={tierStyle(3)}>
-              <path d={sectorPath(target - B2, target - B3)} fill="#16463d" />
-              <path d={sectorPath(target + B3, target + B2)} fill="#16463d" />
-              {showNumbers && <><Num a={target - 20} n={2} /><Num a={target + 20} n={2} /></>}
+              <path d={sectorPath(target - b2, target - b3)} fill="#16463d" />
+              <path d={sectorPath(target + b3, target + b2)} fill="#16463d" />
+              {showNumbers && <><Num a={target - m2} n={2} /><Num a={target + m2} n={2} /></>}
             </g>
             <g style={tierStyle(2)}>
-              <path d={sectorPath(target - B3, target - B4)} fill="#2f9c79" />
-              <path d={sectorPath(target + B4, target + B3)} fill="#2f9c79" />
-              {showNumbers && <><Num a={target - 10} n={3} /><Num a={target + 10} n={3} /></>}
+              <path d={sectorPath(target - b3, target - b4)} fill="#2f9c79" />
+              <path d={sectorPath(target + b4, target + b3)} fill="#2f9c79" />
+              {showNumbers && <><Num a={target - m3} n={3} /><Num a={target + m3} n={3} /></>}
             </g>
             <g style={tierStyle(1)}>
-              <path d={sectorPath(target - B4, target + B4)} fill="#4ade80" />
+              <path d={sectorPath(target - b4, target + b4)} fill="#4ade80" />
               {showNumbers && <Num a={target} n={4} />}
             </g>
           </g>

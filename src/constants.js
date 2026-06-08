@@ -170,6 +170,24 @@ export const VBW = 440, VBH = 244;
 export const cx = 220, cy = 214, R = 188;
 export const B4 = 5, B3 = 15, B2 = 25; // five equal 10° bands: 2-3-4-3-2
 
+// ---------- DIFFICULTY ----------
+// Difficulty just resizes the scoring bands: Easy grows every section by 3° (more
+// forgiving), Hard shrinks every section by 3° (tighter). Standard is the base 2-3-4-3-2.
+// Chosen once when the game is created and applied to scoring + the dial rendering.
+export const DIFFICULTIES = [
+  { id: "easy", label: "Easy", delta: 3, blurb: "+3° per zone", tone: "#4ade80" },
+  { id: "standard", label: "Standard", delta: 0, blurb: "Classic", tone: "#67e8f9" },
+  { id: "hard", label: "Hard", delta: -3, blurb: "−3° per zone", tone: "#f87171" },
+];
+export const difficultyMeta = (id) => DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[1];
+export const DEFAULT_DIFFICULTY = "standard";
+const deltaFor = (id) => (DIFFICULTIES.find((d) => d.id === id)?.delta ?? 0);
+// Resolve a difficulty id to its three band edges (half-widths from the target).
+export const bandsFor = (id = DEFAULT_DIFFICULTY) => {
+  const d = deltaFor(id);
+  return { b4: B4 + d, b3: B3 + d, b2: B2 + d };
+};
+
 export const clampA = (a) => Math.max(0, Math.min(180, a));
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -178,11 +196,12 @@ export function pt(a) {
   return { x: cx + R * Math.cos(phi), y: cy - R * Math.sin(phi) };
 }
 
-export function scoreFor(guess, target) {
+export function scoreFor(guess, target, difficulty = DEFAULT_DIFFICULTY) {
+  const { b4, b3, b2 } = bandsFor(difficulty);
   const d = Math.abs(guess - target);
-  if (d <= B4) return 4;
-  if (d <= B3) return 3;
-  if (d <= B2) return 2;
+  if (d <= b4) return 4;
+  if (d <= b3) return 3;
+  if (d <= b2) return 2;
   return 0;
 }
 
