@@ -161,6 +161,7 @@ export const THEMES = [
   ["A flicker", "An inferno"],
   ["Quietly judging", "Openly hating"],
   ["Princess Treatment", "Bare Minimum"],
+  ["Good thing to say to your GF", "Bad thing to say to your GF"],
 ];
 
 export const PLAYER_COLORS = ["#38bdf8", "#fb923c", "#a78bfa", "#f472b6", "#facc15", "#4ade80", "#f87171", "#2dd4bf"];
